@@ -2,6 +2,7 @@
 # Build the launcher and render the service's files into OUT, installing nothing.
 #
 #   service/macos/build.sh --out DIR --ingester PATH [--home DIR] [--app-dir DIR] [--port N]
+#                          [--label LABEL]
 #
 # The rendered files name their installed paths under APP_DIR (default
 # HOME/Library/Application Support/haiku.rag, HOME defaulting to $HOME). OUT
@@ -22,6 +23,7 @@ ingester=
 home=$HOME
 app=
 port=8765
+label=com.haiku-rag.service
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -30,6 +32,7 @@ while [ $# -gt 0 ]; do
         --home) home=$2; shift 2 ;;
         --app-dir) app=$2; shift 2 ;;
         --port) port=$2; shift 2 ;;
+        --label) label=$2; shift 2 ;;
         *) echo "unknown option: $1" >&2; exit 64 ;;
     esac
 done
@@ -51,6 +54,7 @@ render() {
         -e "s|@MODEL_DIR@|$(escape "$app/models/jina-nano-coreml")|g" \
         -e "s|@HOME@|$(escape "$home")|g" \
         -e "s|@PORT@|$port|g" \
+        -e "s|@LABEL@|$(escape "$label")|g" \
         -e "s|@STATE_DIR@|$(escape "$service")|g" \
         "$1" > "$2"
 }

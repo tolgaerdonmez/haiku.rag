@@ -1,7 +1,7 @@
 # The local search service's configuration, installed as-is to
 # ~/Library/Application Support/haiku.rag/haiku.rag.yaml. Paths use ${HOME} and
 # are absolute, so the file also works as a symlink. The coreml model directory
-# holds model.mlpackage and tokenizer.json (examples/coreml converts it).
+# holds model.mlpackage and tokenizer.json (scripts/install-macos.sh downloads it).
 environment: production
 storage:
   data_dir: ${HOME}/Library/Application Support/haiku.rag

@@ -2,9 +2,10 @@
 
 The [local search API](local-search-api.md) runs as a per-user launchd agent:
 `haiku-ingester serve` watching the registered folders, started on demand, at
-low priority. `scripts/macos-service.sh` installs it from a checkout, with the
-Raycast extension (`clients/raycast`) and its Cmd+Shift+F hotkey. The files it
-installs live in `service/macos/`:
+low priority. `scripts/install-macos.sh` asks what to install and installs it;
+`scripts/macos-service.sh`, which it builds on, installs and manages the service
+from a checkout, with the Raycast extension (`clients/raycast`) and its
+Cmd+Shift+F hotkey. The files they install live in `service/macos/`:
 
 | File | What it is |
 |---|---|
@@ -27,14 +28,73 @@ Everything is installed under `~/Library/Application Support/haiku.rag/`:
 | `service/env/` | The Python environment, with the `ingester` and `coreml` extras |
 | `service/service.log` | The service's log |
 | `raycast/` | The Raycast extension's working copy |
+| `source/` | The fork's checkout, when the installer ran on its own |
 
 ## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tolgaerdonmez/haiku.rag/main/scripts/install-macos.sh | sh
+```
+
+Run on its own, the installer clones the fork into
+`~/Library/Application Support/haiku.rag/source` (or updates that clone) and
+runs the copy there; from a checkout, `scripts/install-macos.sh` installs that
+checkout. It checks the Mac (macOS 15 or later, Apple Silicon for the Neural
+Engine, the Xcode Command Line Tools, uv, which it offers to install, free disk,
+Raycast and Karabiner-Elements), lists the components with their sizes, and
+installs the ones you keep checked:
+
+| Component | | Preselected |
+|---|---|---|
+| `service` | The launchd agent, its launcher and the Python environment (about 1.9 GB) | yes |
+| `model` | The Core ML embedding model from Hugging Face (about 850 MB installed, 420 MB download, each file checked against its SHA-256) | yes |
+| `raycast` | The Raycast extension: Search Documents, Manage Indexed Folders. Needs Node.js | when Raycast is installed |
+| `hotkey` | Cmd+Shift+F opens Search Documents, as a Karabiner-Elements rule. Other apps lose Cmd+Shift+F | no; offered when Karabiner is installed |
+| `folders` | Folders to index, asked one by one (`~/Documents` suggested), registered with the excludes `.*`, `*.json`, `*.yaml`, `*.yml` | yes |
+
+Afterwards it shows the Full Disk Access step with the launcher's exact path
+and offers to open that System Settings pane, checks that the service answers,
+runs a test search when documents are indexed, and prints how to pause and
+uninstall. Running it again updates what changed and keeps the index, the
+folder list and an installed model.
+
+Options pick components without asking: `--service`, `--model`, `--raycast`,
+`--hotkey` and their `--no-` forms, `--folder PATH` (repeatable) and
+`--no-folders`. `--yes` asks nothing and installs the preselected set, without
+folders unless `--folder` names them; `--dry-run` checks the Mac and prints the
+plan. With the one-liner, pass them after `sh -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tolgaerdonmez/haiku.rag/main/scripts/install-macos.sh \
+  | sh -s -- --yes --folder ~/Documents
+```
+
+`--model-from DIR` installs a model folder you already have instead of
+downloading one, and `--model-repo ID` / `--model-revision REV` download from
+another Hugging Face repository. `HAIKU_RAG_REPO`, `HAIKU_RAG_REF` and
+`HAIKU_RAG_SOURCE` pick the repository, branch and clone directory of the
+one-liner.
+
+### Uninstall
+
+```bash
+scripts/install-macos.sh --uninstall
+```
+
+removes the agent, the launcher, the Python environment, the configuration, the
+Raycast extension, the Cmd+Shift+F rule, the model and the fetched source. It
+asks before deleting the index, the queue and the folder list, and keeps them
+by default (`--delete-index` deletes them, `--keep-model` keeps the model). It
+never touches the indexed folders or their files. The Full Disk Access entry is
+left for you to remove in System Settings.
+
+### By hand: `scripts/macos-service.sh`
 
 ```bash
 scripts/macos-service.sh install --model-from DIR
 ```
 
-`--model-from` names a converted model directory (see
+`--model-from` names a model directory (see
 [The embedding model](#the-embedding-model)); it is copied when it differs from the
 installed one, which is kept as `models/jina-nano-coreml.previous`. The command
 stops the agent, builds the environment from the checkout with
@@ -52,6 +112,7 @@ is active.
 | `pause`, `resume` | Unload the agent until the next login, load it again |
 | `logs` | Follow `service/service.log` |
 | `cli ARGUMENT...` | `haiku-rag` with the service's configuration, e.g. `cli rebuild --rechunk` (pause first) |
+| `model DIR`, `raycast`, `karabiner` | One install step: the model from DIR, the Raycast extension, the Karabiner rule |
 | `uninstall` | Remove the agent and the environment; data, model, launcher and Raycast extension stay |
 
 `--folders-seed FILE` installs that register instead of the empty one when
@@ -83,16 +144,21 @@ The configuration is sized for a first full index (8 conversion processes and
 
 ## The embedding model
 
-`examples/coreml/convert_jina_nano.py` converts
-`jina-embeddings-v5-omni-nano-retrieval` into one function per sequence length,
-64 to 2048 tokens. Each text runs on the shortest that fits it, so
-`processing.chunk_size: 1024` (counted with `processing.chunking_tokenizer`)
-leaves room for the document prefix and a tokenizer that counts more tokens.
+The service embeds with
+[tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml](https://huggingface.co/tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml),
+a Core ML conversion of `jinaai/jina-embeddings-v5-omni-nano-retrieval` with
+one function per sequence length, 64 to 2048 tokens. Each text runs on the
+shortest that fits it, so `processing.chunk_size: 1024` (counted with
+`processing.chunking_tokenizer`) leaves room for the document prefix and a
+tokenizer that counts more tokens. The installer downloads it; by hand,
+download the repository's `model.mlpackage` and `tokenizer.json` into a
+directory and run `scripts/macos-service.sh model DIR`.
 
-```bash
-uv run --with sentence-transformers python examples/coreml/convert_jina_nano.py \
-  jinaai/jina-embeddings-v5-omni-nano-retrieval ./jina-nano-coreml
-```
+**Licenses.** haiku.rag is MIT-licensed and only loads a Core ML model: it
+contains no code that converts or modifies the jina model. The converted model
+and the script that converts it live in that Hugging Face repository, under the
+model's own license, CC BY-NC 4.0 by Jina AI: non-commercial use, with
+attribution.
 
 After changing `chunk_size`, re-chunk the index without converting documents
 again:

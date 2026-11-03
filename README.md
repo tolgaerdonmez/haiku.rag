@@ -31,6 +31,16 @@ pip install haiku.rag-slim   # the core, with extras chosen by you
 
 The ingester, S3 access and model providers other than Ollama and OpenAI-compatible endpoints are extras. See [Installation](https://ggozad.github.io/haiku.rag/installation/).
 
+### Local file search on macOS
+
+One command installs a background service that indexes your folders and searches them with a Core ML embedding model on the Neural Engine, plus the Raycast extension and an optional Cmd+Shift+F hotkey. It asks which components and folders you want:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tolgaerdonmez/haiku.rag/main/scripts/install-macos.sh | sh
+```
+
+See [Local search service on macOS](docs/local-service-macos.md) for what each component does, the options, and `--uninstall`. The embedding model is downloaded from Hugging Face and carries its own non-commercial license (CC BY-NC 4.0, Jina AI); haiku.rag contains no model conversion code.
+
 ## Quick start
 
 The default configuration uses Ollama for embeddings and answers. The [quickstart](https://ggozad.github.io/haiku.rag/tutorial/) covers the models to pull and using OpenAI instead.

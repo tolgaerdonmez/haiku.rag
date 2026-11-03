@@ -262,11 +262,13 @@ embeddings:
     document_prefix: "Document: "
 ```
 
-`name` is a directory holding the converted model, `model.mlpackage`, and its Hugging Face `tokenizer.json`. Each function of the model takes `input_ids` and `attention_mask` (int32, shape `[1, length]`, right-padded) and returns `embedding` (`[1, vector_dim]`), pooled and normalized inside the model. A model can carry several functions of different fixed lengths: each text runs on the shortest that fits, and a text longer than the longest is truncated to it. [examples/coreml](https://github.com/ggozad/haiku.rag/tree/main/examples/coreml) converts `jinaai/jina-embeddings-v5-omni-nano-retrieval` this way.
+`name` is a directory holding the converted model, `model.mlpackage`, and its Hugging Face `tokenizer.json`. Each function of the model takes `input_ids` and `attention_mask` (int32, shape `[1, length]`, right-padded) and returns `embedding` (`[1, vector_dim]`), pooled and normalized inside the model. A model can carry several functions of different fixed lengths: each text runs on the shortest that fits, and a text longer than the longest is truncated to it.
+
+haiku.rag only loads a Core ML model; it contains no code that converts or modifies one. A conversion of `jinaai/jina-embeddings-v5-omni-nano-retrieval` in this format, functions of 64 to 2048 tokens, is published with its conversion script at [tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml](https://huggingface.co/tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml). Those weights carry Jina AI's CC BY-NC 4.0 license (non-commercial use, with attribution), not haiku.rag's MIT license.
 
 The model loads on first use. The first load compiles `model.mlpackage` to `model.mlmodelc` beside it, compiled again when the package changes. Core ML caches its Neural Engine build for a compiled model at a fixed path, so later loads take a fraction of a second. A read-only model directory compiles to a temporary directory on every load instead.
 
-With `jina-embeddings-v5-omni-nano-retrieval` (768 dimensions, functions of 64 to 512 tokens) on an M-series Mac, 597 of the model's 602 operations run on the Neural Engine. `rebuild --embed-only` of 5,416 chunks of 256 tokens took 36 s with no GPU time, a hybrid search 6 ms, and the loaded model about 80 MB. Converting a model needs `coremltools`; running it does not.
+With `jina-embeddings-v5-omni-nano-retrieval` (768 dimensions, functions of 64 to 512 tokens) on an M-series Mac, 597 of the model's 602 operations run on the Neural Engine. `rebuild --embed-only` of 5,416 chunks of 256 tokens took 36 s with no GPU time, a hybrid search 6 ms, and the loaded model about 80 MB.
 
 ## Question-answering providers
 

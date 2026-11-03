@@ -4,7 +4,7 @@
 
 ### Added
 
-- `coreml` embedding provider: runs a converted Core ML model in-process on the Apple Neural Engine through PyObjC's Core ML bindings (macOS 15+, `coreml` extra). `examples/coreml` converts `jina-embeddings-v5-omni-nano-retrieval` (#819).
+- `coreml` embedding provider: runs a converted Core ML model in-process on the Apple Neural Engine through PyObjC's Core ML bindings (macOS 15+, `coreml` extra) (#819). haiku.rag contains no model conversion code: the converted `jina-embeddings-v5-omni-nano-retrieval` and its conversion script are published on Hugging Face as `tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml`, under the model's CC BY-NC 4.0 license.
 - Supervised conversion (`processing.supervisor`): docling-local converts each document, or each batch of a long PDF's pages, in a pooled worker process killed after `unit_timeout`, and retries a failed unit once with `retry_ocr_engine` (RapidOCR). A stalled conversion costs only its document. Long PDFs convert as page batches in parallel. `add-src DIR` ingests concurrently under it and lists the files that failed.
 - Folder register (`ingester.folders_register`): local folders to index, with include and exclude patterns, managed with `haiku-rag folders`, the ingester API's `/folders` and MCP's `list_folders`, `add_folder` and `remove_folder`. `serve` follows changes to it as they happen, and a removed folder's documents leave the index.
 - Local search API on the ingester's HTTP API: `/search`, per-document search, documents and outlines, `/status` and `/failures`, with each hit's file path, document type, pages, line, headings, labels, snippet and per-page boxes. See `docs/local-search-api.md`.
@@ -12,12 +12,13 @@
 - `ingester.service`: the search client closes when idle, a throttle holds conversions back on battery, under load and in low memory, and `idle_exit_s` ends an idle service. `HAIKU_RAG_LISTEN_FD` serves the API on an inherited socket.
 - `service/macos/`: a launchd agent, socket-activated, and the launcher that holds its Full Disk Access grant.
 - `scripts/macos-service.sh`: installs the service from a checkout (`install`, `status`, `restart`, `pause`, `resume`, `logs`, `cli`, `uninstall`), with the Raycast extension and its Cmd+Shift+F Karabiner rule. `service/macos/build.sh` renders every installed file, the configuration `service/macos/haiku.rag.yaml` included.
+- `scripts/install-macos.sh`: an interactive installer for the service, the Core ML model (downloaded from Hugging Face and checksummed), the Raycast extension, the Cmd+Shift+F hotkey and the folders to index. It runs from a checkout or as a one-liner that clones the fork, has a non-interactive `--yes` mode and an `--uninstall` that keeps the index unless asked.
 
 ### Changed
 
 - The `docling` extra installs `ocrmac` (macOS) and `onnxruntime`, the runtimes of Apple Vision OCR and RapidOCR.
 - `ingester.databases` entries may hold only `retired_sources` while their documents are deleted.
-- `examples/coreml/convert_jina_nano.py` converts sequence lengths up to 2048 by default, and the service configuration chunks at 1024 tokens.
+- The service configuration chunks at 1024 tokens, for a Core ML model with functions up to 2048 tokens.
 
 ## [0.106.0] - 2026-11-03
 

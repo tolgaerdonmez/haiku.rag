@@ -5,6 +5,7 @@
 #                                    [--no-raycast] [--no-karabiner]
 #   scripts/macos-service.sh status | restart | pause | resume | logs
 #   scripts/macos-service.sh cli ARGUMENT...   # haiku-rag with the service's config
+#   scripts/macos-service.sh model DIR | raycast | karabiner   # one install step
 #   scripts/macos-service.sh uninstall
 #
 # install builds the service's Python environment from this checkout with uv
@@ -15,6 +16,9 @@
 # Core ML model (from --model-from when it differs), the launchd agent, the
 # Raycast extension (developer-mode registration) and the Karabiner Cmd+Shift+F
 # rule (only if missing). It refuses while a Nix-managed install is present.
+# HAIKU_RAG_SERVICE_LABEL and HAIKU_RAG_SERVICE_PORT override the agent's label
+# and port, so a test install under another HOME runs beside the real one.
+# scripts/install-macos.sh is the interactive installer built on this script.
 set -eu
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,10 +26,10 @@ app="$HOME/Library/Application Support/haiku.rag"
 service="$app/service"
 env="$service/env"
 model="$app/models/jina-nano-coreml"
-label=com.haiku-rag.service
+label=${HAIKU_RAG_SERVICE_LABEL:-com.haiku-rag.service}
 plist="$HOME/Library/LaunchAgents/$label.plist"
 job="gui/$(id -u)/$label"
-port=8765
+port=${HAIKU_RAG_SERVICE_PORT:-8765}
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'macos-service: %s\n' "$*" >&2; exit 1; }
@@ -112,17 +116,19 @@ install_model() {
         rm -rf "$model.new"
         mkdir -p "$model.new"
         /bin/cp -cR "$model_from/model.mlpackage" "$model_from/tokenizer.json" "$model.new/"
+        kept=
         if [ -e "$model" ]; then
             rm -rf "$model.previous"
             mv "$model" "$model.previous"
+            kept=" (previous kept as $(basename "$model").previous)"
         fi
         mv "$model.new" "$model"
-        say "Model: installed from $model_from (previous kept as $(basename "$model").previous)"
+        say "Model: installed from $model_from$kept"
     elif [ ! -e "$model/model.mlpackage" ]; then
-        say "Model: MISSING. The service will not start without it. Convert one:"
-        say "  (cd $repo && uv run --with sentence-transformers python examples/coreml/convert_jina_nano.py \\"
-        say "     jinaai/jina-embeddings-v5-omni-nano-retrieval DIR --lengths 64 128 256 512 1024 2048)"
-        say "  then: $0 install --model-from DIR"
+        say "Model: MISSING. The service will not start without it. Install it with:"
+        say "  $repo/scripts/install-macos.sh --model --no-service"
+        say "  or download huggingface.co/tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml"
+        say "  to DIR, then: $0 model DIR"
     fi
 }
 
@@ -189,7 +195,9 @@ install_karabiner() {
         say "Karabiner: no karabiner.json, Cmd+Shift+F rule not installed"
         return 0
     fi
-    "$env/bin/python" - "$config" "$rule" <<'EOF'
+    py="$env/bin/python"
+    [ -x "$py" ] || py=/usr/bin/python3
+    "$py" - "$config" "$rule" <<'EOF'
 import json, os, sys, tempfile
 config_path, rule_path = sys.argv[1], sys.argv[2]
 with open(config_path, encoding="utf-8") as f:
@@ -237,7 +245,7 @@ install_all() {
     rendered=$(mktemp -d)
     trap 'rm -rf "$rendered"' EXIT
     "$repo/service/macos/build.sh" --out "$rendered" --ingester "$env/bin/haiku-ingester" \
-        --app-dir "$app" --port "$port" >/dev/null
+        --app-dir "$app" --port "$port" --label "$label" >/dev/null
     install_launcher "$rendered"
     install -m 755 "$rendered/bin/haiku-rag-serve" "$service/bin/haiku-rag-serve"
     install_config "$rendered"
@@ -263,6 +271,16 @@ case "${1:-}" in
     resume) start_agent; say "loaded; starts now (RunAtLoad) and on the next request" ;;
     logs) exec tail -n 100 -f "$service/service.log" ;;
     cli) shift; HAIKU_RAG_CONFIG_PATH="$app/haiku.rag.yaml" exec "$env/bin/haiku-rag" "$@" ;;
+    model)
+        [ $# -eq 2 ] || die "usage: $0 model DIR"
+        model_from=$(cd "$2" && pwd)
+        mkdir -p "$app/models"
+        was_loaded=0
+        if loaded; then was_loaded=1; stop_agent; fi
+        install_model
+        [ "$was_loaded" = 0 ] || start_agent ;;
+    raycast) install_raycast ;;
+    karabiner) install_karabiner ;;
     uninstall)
         stop_agent
         rm -f "$plist" "$service/bin/haiku-rag-serve"
@@ -271,6 +289,6 @@ case "${1:-}" in
         say "Access grant), the configuration, folders, model, index and queue in $app,"
         say "the Raycast extension and the Karabiner rule." ;;
     *)
-        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2
         exit 64 ;;
 esac

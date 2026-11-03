@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.haiku-rag.service</string>
+    <string>@LABEL@</string>
 
     <!-- The launcher holds the Full Disk Access grant and runs the service. -->
     <key>ProgramArguments</key>
