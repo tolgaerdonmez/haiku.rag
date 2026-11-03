@@ -67,12 +67,13 @@ describe("fileKind", () => {
 
 describe("planOpen", () => {
   it("opens a PDF in Skim at the first page with boxes, keeping that page's boxes", () => {
-    const plan = planOpen(hit(), ALL_APPS);
+    const plan = planOpen(hit(), ALL_APPS, "travis picking");
     expect(plan.kind).toBe("skim");
     if (plan.kind !== "skim") return;
     expect(plan.page).toBe(40);
     expect(plan.boxes.map((b) => b.page)).toEqual([40]);
     expect(plan.preferBox).toBe(false);
+    expect(plan.focus[0]).toBe("Travis picking is a fingerstyle technique named after");
   });
 
   it("outlines pictures and tables instead of selecting text", () => {

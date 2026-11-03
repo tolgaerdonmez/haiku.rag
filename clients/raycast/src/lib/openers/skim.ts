@@ -55,9 +55,17 @@ function raiseTab(pathLiteral: string): string {
 /**
  * Goes to the page and shows the passage without writing to the PDF: a text selection when the
  * boxes cover selectable text, otherwise a selection-tool marquee (scanned pages, pictures).
- * Returns "text", "box" or "page".
+ * Within the boxes, the first `focus` phrase found on the page inside them is selected instead
+ * of all the boxes' text: a box covers a whole document element, larger than the match.
+ * Returns "focus", "text", "box" or "page".
  */
-export function revealScript(path: string, page: number, target: SkimTarget, preferBox: boolean): string {
+export function revealScript(
+  path: string,
+  page: number,
+  target: SkimTarget,
+  preferBox: boolean,
+  focus: string[] = [],
+): string {
   const pathLiteral = appleScriptString(path);
   if (!target.marquee) {
     return `tell application "Skim"
@@ -97,8 +105,29 @@ ${joins}
     return "box"
   end if
   set tool of d to text tool
+${focusBlock(target.marquee, focus)}
   go d to sel
   set selection of d to sel
   return "text"
 end tell`;
+}
+
+function focusBlock(marquee: SkimRect, focus: string[]): string {
+  if (focus.length === 0) return "";
+  const [, top, , bottom] = marquee;
+  return `  try
+    set pageText to (text of p) as text
+    repeat with phrase in {${focus.map(appleScriptString).join(", ")}}
+      set k to offset of (phrase as text) in pageText
+      if k > 0 then
+        set candidate to a reference to (characters k thru (k + (length of (phrase as text)) - 1) of text of p)
+        set r to obtain rectangle for candidate
+        if (item 2 of r) is less than or equal to ${Math.round(top)} and (item 4 of r) is greater than or equal to ${Math.round(bottom)} then
+          go d to candidate
+          set selection of d to candidate
+          return "focus"
+        end if
+      end if
+    end repeat
+  end try`;
 }

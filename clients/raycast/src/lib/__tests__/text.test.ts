@@ -4,6 +4,7 @@ import { parsePatterns } from "../patterns";
 import {
   emphasiseMarkdown,
   emphasisePlain,
+  focusPhrases,
   locateLine,
   queryTerms,
   snippetSpans,
@@ -136,5 +137,29 @@ describe("citations and grouping", () => {
   it("parses folder patterns", () => {
     expect(parsePatterns("**/*.pdf\n **/*.md , \n")).toEqual(["**/*.pdf", "**/*.md"]);
     expect(parsePatterns(undefined)).toEqual([]);
+  });
+});
+
+describe("focusPhrases", () => {
+  const snippet =
+    "...ipsum dolor sit amet. Filler line 24 on page 2 lorem ipsum dolor sit amet. The quick brown fox jumps over the lazy dog near the riverbank. Filler line 26 on page 2...";
+
+  it("picks the sentence with the most highlighted words, then shorter runs around the first match", () => {
+    const highlights: [number, number][] = [
+      [82, 87],
+      [88, 93],
+      [94, 97],
+      [131, 140],
+    ];
+    expect(focusPhrases(snippet, "", highlights)).toEqual([
+      "The quick brown fox jumps over the lazy dog near",
+      "The quick brown fox jumps",
+      "quick brown fox",
+    ]);
+  });
+
+  it("falls back to the query words and returns nothing without a match", () => {
+    expect(focusPhrases(snippet, "riverbank", [])[0]).toBe("The quick brown fox jumps over the lazy dog near");
+    expect(focusPhrases(snippet, "", [])).toEqual([]);
   });
 });

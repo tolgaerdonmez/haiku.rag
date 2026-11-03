@@ -40,8 +40,11 @@ async function json<T>(file: string, args: string[]): Promise<T> {
 async function openInSkim(plan: Extract<OpenPlan, { kind: "skim" }>): Promise<OpenOutcome> {
   const bounds = parseBounds(await runAppleScript(pageBoundsScript(plan.path, plan.page), { timeout: 30_000 }));
   const target = skimTarget(plan.boxes, bounds);
-  const how = await runAppleScript(revealScript(plan.path, plan.page, target, plan.preferBox), { timeout: 15_000 });
+  const how = await runAppleScript(revealScript(plan.path, plan.page, target, plan.preferBox, plan.focus), {
+    timeout: 15_000,
+  });
   const where = `${basename(plan.path)}, page ${plan.page}`;
+  if (how === "focus") return `Opened ${where}, match selected`;
   if (how === "text") return `Opened ${where}, passage selected`;
   if (how === "box") return `Opened ${where}, passage outlined`;
   return `Opened ${where}`;
@@ -215,6 +218,6 @@ export async function executePlan(plan: OpenPlan, settings: OpenerSettings): Pro
   }
 }
 
-export async function openHit(hit: SearchHit, settings: OpenerSettings): Promise<OpenOutcome> {
-  return executePlan(planOpen(hit, { hasApp }), settings);
+export async function openHit(hit: SearchHit, settings: OpenerSettings, query = ""): Promise<OpenOutcome> {
+  return executePlan(planOpen(hit, { hasApp }, query), settings);
 }

@@ -167,3 +167,47 @@ export function locateLine(content: string, passage: string): number | undefined
   }
   return undefined;
 }
+
+/**
+ * Phrases to find on the page, longest first: the snippet sentence holding the most matched
+ * words, then shorter runs around its first match. Empty when nothing in the snippet matched.
+ */
+export function focusPhrases(snippet: string, query: string, highlights?: [number, number][]): string[] {
+  const spans = snippetSpans(snippet, query, highlights);
+  const matches: number[] = [];
+  let pos = 0;
+  for (const s of spans) {
+    if (s.match) matches.push(pos);
+    pos += s.text.length;
+  }
+  if (matches.length === 0) return [];
+  const sentences: { start: number; text: string }[] = [];
+  for (const m of snippet.matchAll(/[^.!?\n]+[.!?]*/g)) sentences.push({ start: m.index, text: m[0] });
+  let best = sentences[0];
+  let bestCount = -1;
+  for (const sentence of sentences) {
+    const count = matches.filter((at) => at >= sentence.start && at < sentence.start + sentence.text.length).length;
+    if (count > bestCount) {
+      best = sentence;
+      bestCount = count;
+    }
+  }
+  if (!best) return [];
+  const words = best.text
+    .replace(/\.{3}|…/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const firstMatch = matches.find((at) => at >= best.start) ?? best.start;
+  const before = snippet
+    .slice(best.start, firstMatch)
+    .replace(/\.{3}|…/g, " ")
+    .trim();
+  const index = before ? before.split(/\s+/).length : 0;
+  const phrases = [
+    words.slice(0, 10),
+    words.slice(Math.max(0, index - 2), index + 4),
+    words.slice(index, index + 3),
+  ].map((w) => w.join(" "));
+  return [...new Set(phrases)].filter((p) => p.split(" ").length >= 2 || words.length === 1);
+}

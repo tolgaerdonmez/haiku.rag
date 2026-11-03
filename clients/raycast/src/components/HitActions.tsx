@@ -22,10 +22,10 @@ import { SearchHit } from "../lib/types";
 import { AskForm } from "./Ask";
 import { SearchView } from "./SearchView";
 
-async function openAtPassage(hit: SearchHit) {
+async function openAtPassage(hit: SearchHit, query: string) {
   const toast = await showToast({ style: Toast.Style.Animated, title: `Opening ${basename(hit.path)}…` });
   try {
-    const outcome = await openHit(hit, openerSettings());
+    const outcome = await openHit(hit, openerSettings(), query);
     await toast.hide();
     await showHUD(outcome);
   } catch (error) {
@@ -42,12 +42,22 @@ async function previewPage(hit: SearchHit) {
   }
 }
 
-export function HitActions({ hit, scoped, extra }: { hit: SearchHit; scoped?: boolean; extra?: ReactNode }) {
+export function HitActions({
+  hit,
+  query = "",
+  scoped,
+  extra,
+}: {
+  hit: SearchHit;
+  query?: string;
+  scoped?: boolean;
+  extra?: ReactNode;
+}) {
   const kind = fileKind(hit.path, hit.documentType);
   return (
     <ActionPanel>
       <ActionPanel.Section>
-        <Action title="Open at Passage" icon={Icon.ArrowRight} onAction={() => openAtPassage(hit)} />
+        <Action title="Open at Passage" icon={Icon.ArrowRight} onAction={() => openAtPassage(hit, query)} />
         <Action.ShowInFinder path={hit.path} shortcut={{ modifiers: ["cmd", "shift"], key: "r" }} />
         {scoped ? null : (
           <Action.Push

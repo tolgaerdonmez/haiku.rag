@@ -152,6 +152,7 @@ export function SearchView({ scope }: { scope?: DocumentScope }) {
                 actions={
                   <HitActions
                     hit={hit}
+                    query={query}
                     scoped={!!scope}
                     extra={
                       <Action

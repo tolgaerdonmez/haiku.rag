@@ -85,15 +85,15 @@ function FolderForm({
       <Form.TextArea
         id="include"
         title="Include"
-        placeholder={"**/*.pdf\n**/*.md"}
-        info="Glob patterns relative to the folder, one per line. Empty takes every supported file."
+        placeholder={"*.pdf\n*.md"}
+        info="Gitignore-style patterns, one per line; *.pdf matches at any depth. Empty takes every supported file."
         defaultValue={folder?.include.join("\n")}
       />
       <Form.TextArea
         id="exclude"
         title="Exclude"
-        placeholder="**/drafts/**"
-        info="Glob patterns relative to the folder, one per line."
+        placeholder="drafts/"
+        info="Gitignore-style patterns, one per line; drafts/ skips every drafts folder."
         defaultValue={folder?.exclude.join("\n")}
       />
     </Form>

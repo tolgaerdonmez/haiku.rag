@@ -1,10 +1,18 @@
 import { boxesForFirstPage } from "../geometry";
 import { fileKind } from "../doctype";
-import { stripMarkdown } from "../text";
+import { focusPhrases, stripMarkdown } from "../text";
 import { BoundingBox, SearchHit } from "../types";
 
 export type OpenPlan =
-  | { kind: "skim"; path: string; page: number; boxes: BoundingBox[]; preferBox: boolean; passage: string }
+  | {
+      kind: "skim";
+      path: string;
+      page: number;
+      boxes: BoundingBox[];
+      preferBox: boolean;
+      passage: string;
+      focus: string[];
+    }
   | { kind: "editor"; path: string; line?: number; passage: string }
   | { kind: "word"; path: string; page?: number; passage: string }
   | { kind: "powerpoint"; path: string; slide?: number; passage: string }
@@ -56,7 +64,7 @@ export function redirectPage(url: string): string {
 }
 
 /** Decides how to open a hit at its exact spot; executing the plan is the caller's job. */
-export function planOpen(hit: SearchHit, env: OpenEnvironment): OpenPlan {
+export function planOpen(hit: SearchHit, env: OpenEnvironment, query = ""): OpenPlan {
   const passage = findText(passageOf(hit));
   const kind = fileKind(hit.path, hit.documentType);
   switch (kind) {
@@ -73,6 +81,7 @@ export function planOpen(hit: SearchHit, env: OpenEnvironment): OpenPlan {
         boxes: onPage?.boxes ?? [],
         preferBox: hit.labels.some((l) => BOX_LABELS.has(l.toLowerCase())),
         passage,
+        focus: focusPhrases(hit.snippet, query, hit.highlights),
       };
     }
     case "text":

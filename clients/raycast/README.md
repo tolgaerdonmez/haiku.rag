@@ -10,7 +10,7 @@ It talks to the local search service (`haiku-ingester serve`, contract in
   shows the page, the section heading and the snippet with the matched words
   in bold; the detail pane (⌘D) shows the passage in its section.
 - **Manage Indexed Folders**: the folder register. Add a folder, edit its
-  include and exclude globs, stop watching it or remove it from the index,
+  include and exclude patterns (gitignore-style), stop watching it or remove it from the index,
   and see and retry files that failed to ingest.
 
 ## Hotkey: Cmd+Shift+F
@@ -41,7 +41,7 @@ Enter opens the result where the passage is:
 
 | File | Opens in | Lands on |
 |---|---|---|
-| PDF, scanned PDF | Skim | The page, scrolled to the passage. Text is selected; a scanned page or a picture gets a selection box. Nothing is written to the PDF. |
+| PDF, scanned PDF | Skim | The page, scrolled to the passage. The snippet sentence with the most matched words is selected when it lies inside the passage's boxes, else all the text in them; a scanned page or a picture gets a selection box around its element. Nothing is written to the PDF. |
 | Markdown, text, code | Neovim in a new Rex tab | The passage's line, centred. |
 | Word | Microsoft Word | The page, with the passage copied for ⌘F. Without Word, the default app with the passage copied. |
 | PowerPoint | Microsoft PowerPoint | The slide, with the passage copied. Without PowerPoint, the default app with the passage copied. |

@@ -39,6 +39,16 @@ describe("Skim scripts", () => {
     expect(script).not.toMatch(/make new note|save/);
   });
 
+  it("selects a focus phrase found inside the boxes before the whole box text", () => {
+    const script = revealScript("/t/s.pdf", 2, skimTarget([box], A4), false, ['a "quoted" phrase', "phrase"]);
+    expect(script).toContain('repeat with phrase in {"a \\"quoted\\" phrase", "phrase"}');
+    expect(script).toContain(
+      "if (item 2 of r) is less than or equal to 348 and (item 4 of r) is greater than or equal to 325",
+    );
+    expect(script.indexOf('return "focus"')).toBeLessThan(script.indexOf('return "text"'));
+    expect(revealScript("/t/s.pdf", 2, skimTarget([box], A4), false)).not.toContain("focus");
+  });
+
   it("joins the selections of a passage split over several boxes", () => {
     const target = skimTarget([box, { ...box, top: 520, bottom: 540 }], A4);
     expect(revealScript("/t/s.pdf", 2, target, true)).toMatch(/set useBox to true[\s\S]*join sel to/);
