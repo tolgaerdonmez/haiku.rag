@@ -201,6 +201,9 @@ async def test_a_document_converting_when_serve_stops_is_queued_again(tmp_path):
     (folder / "hang-always.md").write_text("# hang\n", encoding="utf-8")
     config = _config(tmp_path, folder)
     config.processing.supervisor.unit_timeout = 60.0
+    config.ingester.service.throttle.max_load = None
+    config.ingester.service.throttle.min_free_memory_percent = None
+    config.ingester.service.throttle.on_battery = "run"
     # Long enough for a retry to start, and to be signalled in turn.
     config.ingester.workers.shutdown_grace_s = 4.0
     serving = asyncio.create_task(IngesterApp(config=config).serve(api=False))

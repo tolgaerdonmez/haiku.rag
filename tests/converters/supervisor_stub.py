@@ -14,14 +14,11 @@ from haiku.rag.converters.supervisor_worker import main
 def convert(config, path, source_uri, page_range, ocr_engine):
     name = path.name
     engine = ocr_engine or config.processing.conversion_options.ocr_engine
-    if name.startswith("hang-always") or (
+    if name.startswith("hangpage"):
+        if page_range and page_range[0] <= 4 <= page_range[1]:
+            time.sleep(3600)
+    elif name.startswith("hang-always") or (
         name.startswith("hang") and engine != "rapidocr"
-    ):
-        time.sleep(3600)
-    if (
-        name.startswith("hangpage")
-        and page_range
-        and page_range[0] <= 4 <= page_range[1]
     ):
         time.sleep(3600)
     if name.startswith("slow"):
