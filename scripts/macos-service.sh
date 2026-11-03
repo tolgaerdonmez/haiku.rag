@@ -32,12 +32,18 @@ die() { printf 'macos-service: %s\n' "$*" >&2; exit 1; }
 
 loaded() { /bin/launchctl print "$job" >/dev/null 2>&1; }
 
+running() { /usr/bin/pgrep -f -- "$env/bin/" >/dev/null; }
+
+# bootout returns before the service has exited: it drains its jobs for up to
+# ingester.workers.shutdown_grace_s, and a second instance must not start meanwhile.
 stop_agent() {
-    loaded || return 0
-    /bin/launchctl bootout "$job" 2>/dev/null || true
+    if loaded; then
+        /bin/launchctl bootout "$job" 2>/dev/null || true
+    fi
     i=0
-    while loaded && [ $i -lt 120 ]; do sleep 1; i=$((i + 1)); done
-    ! loaded || die "the agent did not stop within 120 s"
+    while { loaded || running; } && [ $i -lt 150 ]; do sleep 1; i=$((i + 1)); done
+    ! loaded || die "the agent did not unload within 150 s"
+    ! running || die "service processes still running after 150 s: $(/usr/bin/pgrep -f -- "$env/bin/" | tr '\n' ' ')"
 }
 
 start_agent() {
@@ -56,8 +62,9 @@ refuse_nix_install() {
 install_env() {
     command -v uv >/dev/null || die "uv not found"
     say "Python environment: $env"
+    # A uv-managed CPython: an interpreter from a profile on PATH can change under the environment.
     UV_PROJECT_ENVIRONMENT="$env" uv sync --project "$repo" --frozen --no-dev \
-        --no-editable --extra ingester --extra coreml --quiet
+        --no-editable --managed-python --extra ingester --extra coreml --quiet
 }
 
 install_launcher() {

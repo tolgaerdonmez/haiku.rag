@@ -19,6 +19,7 @@ embeddings:
 processing:
   chunk_size: 1024                # the model's longest function is 2048 tokens
   pictures: none
+  extract_pdf_attachments: false  # PowerPoint PDFs embed their equations as MathML .xml files
   conversion_options:
     ocr_engine: ocrmac            # Apple Vision; RapidOCR is the retry
     table_mode: fast

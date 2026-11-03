@@ -1,10 +1,11 @@
 #!/bin/sh
 # Build the launcher and render the service's files into OUT, installing nothing.
 #
-#   service/macos/build.sh --out DIR --ingester PATH [--app-dir DIR] [--port N]
+#   service/macos/build.sh --out DIR --ingester PATH [--home DIR] [--app-dir DIR] [--port N]
 #
 # The rendered files name their installed paths under APP_DIR (default
-# ~/Library/Application Support/haiku.rag). OUT receives:
+# HOME/Library/Application Support/haiku.rag, HOME defaulting to $HOME). OUT
+# receives:
 #
 #   bin/haiku-rag-service       the launcher, installed to APP_DIR/service/bin
 #   launcher.c.sha256           the launcher's source hash: replace an installed
@@ -18,13 +19,15 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out=
 ingester=
-app="${HOME}/Library/Application Support/haiku.rag"
+home=$HOME
+app=
 port=8765
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --out) out=$2; shift 2 ;;
         --ingester) ingester=$2; shift 2 ;;
+        --home) home=$2; shift 2 ;;
         --app-dir) app=$2; shift 2 ;;
         --port) port=$2; shift 2 ;;
         *) echo "unknown option: $1" >&2; exit 64 ;;
@@ -32,6 +35,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$out" ] || { echo "pass --out" >&2; exit 64; }
 [ -n "$ingester" ] || { echo "pass --ingester" >&2; exit 64; }
+[ -n "$app" ] || app="$home/Library/Application Support/haiku.rag"
 
 service="$app/service"
 mkdir -p "$out/bin"
@@ -45,7 +49,7 @@ render() {
         -e "s|@INGESTER@|$(escape "$ingester")|g" \
         -e "s|@CONFIG@|$(escape "$app/haiku.rag.yaml")|g" \
         -e "s|@MODEL_DIR@|$(escape "$app/models/jina-nano-coreml")|g" \
-        -e "s|@HOME@|$(escape "$HOME")|g" \
+        -e "s|@HOME@|$(escape "$home")|g" \
         -e "s|@PORT@|$port|g" \
         -e "s|@STATE_DIR@|$(escape "$service")|g" \
         "$1" > "$2"
