@@ -124,6 +124,7 @@ def _search_result(results: list[SearchResult], covers_multiple: bool) -> ToolRe
             include_collection=covers_multiple,
             include_document_id=True,
             include_chunk_meta=True,
+            include_location=True,
         )
         for rank, result in enumerate(results, 1)
     )
@@ -250,8 +251,9 @@ def _covering(scope: "DatabaseScope", config: AppConfig) -> FastMCP:
         Use this first for any question the documents might answer; it needs
         no model and is the cheapest call. Results come best first, each with
         its rank, `Document ID`, `Collection` when the server covers several,
-        the document title, section headings, the matched chunk's metadata
-        when it has any, and the matching passage expanded to its section;
+        the local file's `Path` and the `Pages` it spans when known, the
+        document title, section headings, the matched chunk's metadata when it
+        has any, and the matching passage expanded to its section;
         pass the id and collection to the document tools. Pictures in the
         results follow as images, each labelled with its result. Ranks, not scores,
         are the signal: scores are not comparable across queries. If nothing

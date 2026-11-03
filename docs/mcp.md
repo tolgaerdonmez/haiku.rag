@@ -139,7 +139,8 @@ repeating it.
 
 `search_documents` runs hybrid search, vector and full-text. Its text content
 is the rendering the in-process agents read: results best first, each with its
-rank, `Document ID`, `Collection` when the server covers several, the document
+rank, `Document ID`, `Collection` when the server covers several, the local
+file's `Path` and the `Pages` the passage spans when known, the document
 title, section headings, the matched chunk's metadata when it has any, and the
 passage expanded to its section the way the agents get it
 (`search.max_context_chars` caps it). Pictures in the results follow as
