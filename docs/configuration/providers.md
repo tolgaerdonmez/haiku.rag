@@ -18,7 +18,6 @@ haiku.rag uses three kinds of model: an embedder, a question-answering model, an
 | `voyageai` | | yes, multimodal | | `voyageai` (in `haiku.rag`) | `VOYAGE_API_KEY` |
 | `cohere` | | yes, multimodal | yes | `cohere` (in `haiku.rag`) | `CO_API_KEY` |
 | `sentence-transformers` | | yes | | `cross-encoder` (in `haiku.rag`) | |
-| `coreml` | | yes | | `coreml` | |
 | `cross-encoder` | | | yes | `cross-encoder` (in `haiku.rag`) | |
 | `zeroentropy` | | | yes | `zeroentropy` (in `haiku.rag`) | `ZEROENTROPY_API_KEY` |
 | `jina` | | | yes | none | `JINA_API_KEY` |
@@ -182,8 +181,6 @@ embeddings:
     vector_dim: 384
 ```
 
-`provider: coreml` runs a converted model in-process on the Apple Neural Engine, see [Core ML on the Neural Engine](#core-ml-on-the-neural-engine).
-
 An OpenAI-compatible server takes `provider: openai` with a `base_url` that includes `/v1`:
 
 ```yaml
@@ -211,7 +208,7 @@ embeddings:
 
 The query prefix is the embeddinggemma model card's question-answering prompt and the document prefix its document prompt. The card lists other query tasks with the same document prefix, among them `"task: search result | query: "` for document search.
 
-The prefixes are honoured on `coreml`, `ollama`, `openai`, `vllm` and `openrouter`. `voyageai`, `cohere` and `sentence-transformers` mark queries and documents themselves and raise when either prefix is set. Images get no prefix, and full-text search indexes the chunk text without one.
+The prefixes are honoured on `ollama`, `openai`, `vllm` and `openrouter`. `voyageai`, `cohere` and `sentence-transformers` mark queries and documents themselves and raise when either prefix is set. Images get no prefix, and full-text search indexes the chunk text without one.
 
 Both prefixes are part of the recorded embedder identity, and changing one is treated like changing the model (see [Storage](storage.md)). The document prefix shapes every stored vector, so a changed `document_prefix` needs `haiku-rag rebuild --embed-only`, and `haiku-rag rebuild --set-embedder` refuses it. The query prefix shapes only queries, so a changed `query_prefix` is recorded by `haiku-rag rebuild --set-embedder` without re-embedding.
 
@@ -247,28 +244,6 @@ embeddings:
 VoyageAI's `voyage-multimodal-3` (1024) and Cohere's `embed-v4.0` take the flag the same way.
 
 A data URI passed as a plain string is embedded as text by these endpoints, so an image reaches the image path only through a multimodal embedder. See [Picture handling](processing.md#picture-handling) for how pictures, embedder and QA model combine.
-
-### Core ML on the Neural Engine
-
-On Apple Silicon, Ollama and sentence-transformers run embeddings on the GPU. `provider: coreml` runs a Core ML model in-process through Apple's Core ML framework (PyObjC's bindings), with compute units pinned to the CPU and Neural Engine, leaving the GPU to docling. It needs macOS 15 or newer and the `coreml` extra, and embeds text only.
-
-```yaml
-embeddings:
-  model:
-    provider: coreml
-    name: ~/models/jina-nano-coreml    # holds model.mlpackage and tokenizer.json
-    vector_dim: 768
-    query_prefix: "Query: "
-    document_prefix: "Document: "
-```
-
-`name` is a directory holding the converted model, `model.mlpackage`, and its Hugging Face `tokenizer.json`. Each function of the model takes `input_ids` and `attention_mask` (int32, shape `[1, length]`, right-padded) and returns `embedding` (`[1, vector_dim]`), pooled and normalized inside the model. A model can carry several functions of different fixed lengths: each text runs on the shortest that fits, and a text longer than the longest is truncated to it.
-
-haiku.rag only loads a Core ML model; it contains no code that converts or modifies one. A conversion of `jinaai/jina-embeddings-v5-omni-nano-retrieval` in this format, functions of 64 to 2048 tokens, is published with its conversion script at [tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml](https://huggingface.co/tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml). Those weights carry Jina AI's CC BY-NC 4.0 license (non-commercial use, with attribution), not haiku.rag's MIT license.
-
-The model loads on first use. The first load compiles `model.mlpackage` to `model.mlmodelc` beside it, compiled again when the package changes. Core ML caches its Neural Engine build for a compiled model at a fixed path, so later loads take a fraction of a second. A read-only model directory compiles to a temporary directory on every load instead.
-
-With `jina-embeddings-v5-omni-nano-retrieval` (768 dimensions, functions of 64 to 512 tokens) on an M-series Mac, 597 of the model's 602 operations run on the Neural Engine. `rebuild --embed-only` of 5,416 chunks of 256 tokens took 36 s with no GPU time, a hybrid search 6 ms, and the loaded model about 80 MB.
 
 ## Question-answering providers
 

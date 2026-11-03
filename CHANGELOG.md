@@ -4,7 +4,6 @@
 
 ### Added
 
-- `coreml` embedding provider: runs a converted Core ML model in-process on the Apple Neural Engine through PyObjC's Core ML bindings (macOS 15+, `coreml` extra) (#819). haiku.rag contains no model conversion code: the converted `jina-embeddings-v5-omni-nano-retrieval` and its conversion script are published on Hugging Face as `tolgaerdonmez/jina-embeddings-v5-omni-nano-coreml`, under the model's CC BY-NC 4.0 license.
 - Supervised conversion (`processing.supervisor`): docling-local converts each document, or each batch of a long PDF's pages, in a pooled worker process killed after `unit_timeout`, and retries a failed unit once with `retry_ocr_engine` (RapidOCR). A stalled conversion costs only its document. Long PDFs convert as page batches in parallel. `add-src DIR` ingests concurrently under it and lists the files that failed.
 - Folder register (`ingester.folders_register`): local folders to index, with include and exclude patterns, managed with `haiku-rag folders`, the ingester API's `/folders` and MCP's `list_folders`, `add_folder` and `remove_folder`. `serve` follows changes to it as they happen, and a removed folder's documents leave the index.
 - Local search API on the ingester's HTTP API: `/search`, per-document search, documents and outlines, `/status` and `/failures`, with each hit's file path, document type, pages, line, headings, labels, snippet and per-page boxes. See `docs/local-search-api.md`.

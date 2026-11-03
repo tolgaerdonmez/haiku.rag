@@ -86,33 +86,6 @@ async def test_a_busy_service_stays_up(tmp_path, use_client, monkeypatch):
             await asyncio.wait_for(task, timeout=5.0)
 
 
-async def test_idle_databases_release_their_models(tmp_path, use_client, monkeypatch):
-    from unittest.mock import AsyncMock
-
-    client = _mock_client()
-    client.store.embedder.release = AsyncMock()
-    use_client(client)
-    config = _config(tmp_path, shutdown_grace_s=0.2)
-    config.ingester.service.search_idle_s = 0.08
-    counts = iter([{"claimed": 1}])
-
-    async def counts_by_status(self):  # noqa: ARG001
-        return next(counts, {})
-
-    monkeypatch.setattr(JobRepo, "counts_by_status", counts_by_status)
-    app = IngesterApp(config=config)
-    task = asyncio.create_task(app.serve(api=False))
-    try:
-        await _wait_until(lambda: client.store.embedder.release.await_count == 1)
-        await asyncio.sleep(0.3)
-        # Released once until work arrives again.
-        assert client.store.embedder.release.await_count == 1
-    finally:
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(task, timeout=5.0)
-
-
 def _vacuuming_config(tmp_path, **settings):
     config = _config(tmp_path, shutdown_grace_s=0.2)
     vacuum = config.ingester.service.vacuum_after_indexing

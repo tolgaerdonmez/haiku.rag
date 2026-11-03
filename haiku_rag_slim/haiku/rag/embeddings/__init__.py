@@ -89,9 +89,6 @@ class EmbedderWrapper:
             "cohere model."
         )
 
-    async def release(self) -> None:
-        """Unload a model held in this process; the next embed loads it again."""
-
     async def aclose(self) -> None:
         """Release resources held by the embedder."""
         if self._provider is not None:
@@ -254,16 +251,6 @@ def get_embedder(config: AppConfig | None = None) -> EmbedderWrapper:
     if embedding_model.multimodal:
         return _get_multimodal_embedder(embedding_model)
 
-    if provider == "coreml":
-        from haiku.rag.embeddings.coreml import CoreMLEmbedder
-
-        return CoreMLEmbedder(
-            model_name,
-            vector_dim,
-            query_prefix=query_prefix,
-            document_prefix=document_prefix,
-        )
-
     if provider == "ollama":
         # Use model-level base_url if set, otherwise fall back to providers config
         base_url = embedding_model.base_url or config.providers.ollama.base_url
@@ -313,7 +300,7 @@ def get_embedder(config: AppConfig | None = None) -> EmbedderWrapper:
     raise ValueError(f"Unsupported embedding provider: {provider}")
 
 
-_PREFIX_PROVIDERS = {"coreml", "ollama", "openai", "openrouter", "vllm"}
+_PREFIX_PROVIDERS = {"ollama", "openai", "openrouter", "vllm"}
 
 
 def _check_prefixes_supported(embedding_model: "EmbeddingModelConfig") -> None:
