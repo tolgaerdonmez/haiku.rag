@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -30,7 +31,8 @@ class APIState:
     pool's, so it cannot land between a removal's unserve and its delete.
     `reload` is the running app's, and `request_reload` queues one without
     waiting for it. `search` answers the search and document endpoints, and
-    `throttle` is what holds conversions back, when the app runs one."""
+    `throttle` is what holds conversions back, when the app runs one.
+    `last_request_at` is the monotonic time of the latest request."""
 
     config: "AppConfig"
     job_repo: "JobRepo"
@@ -45,6 +47,7 @@ class APIState:
     request_reload: "Callable[[], None] | None" = None
     search: "SearchService | None" = None
     throttle: "Throttle | None" = None
+    last_request_at: float = field(default_factory=time.monotonic)
 
 
 def get_state(request: Request) -> APIState:
@@ -89,6 +92,11 @@ def build_app(
     )
     app.state.api_state = state
     app.state.auth_token = auth_token
+
+    @app.middleware("http")
+    async def _note_activity(request: Request, call_next):
+        state.last_request_at = time.monotonic()
+        return await call_next(request)
 
     auth_dep = [Depends(require_auth)]
     app.include_router(health.router)  # /health is unauthenticated by design

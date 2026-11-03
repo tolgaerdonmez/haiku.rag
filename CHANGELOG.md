@@ -5,6 +5,17 @@
 ### Added
 
 - `coreml` embedding provider: runs a converted Core ML model in-process on the Apple Neural Engine through PyObjC's Core ML bindings (macOS 15+, `coreml` extra). `examples/coreml` converts `jina-embeddings-v5-omni-nano-retrieval` (#819).
+- Supervised conversion (`processing.supervisor`): docling-local converts each document, or each batch of a long PDF's pages, in a pooled worker process killed after `unit_timeout`, and retries a failed unit once with `retry_ocr_engine` (RapidOCR). A stalled conversion costs only its document. Long PDFs convert as page batches in parallel. `add-src DIR` ingests concurrently under it and lists the files that failed.
+- Folder register (`ingester.folders_register`): local folders to index, with include and exclude patterns, managed with `haiku-rag folders`, the ingester API's `/folders` and MCP's `list_folders`, `add_folder` and `remove_folder`. `serve` follows changes to it as they happen, and a removed folder's documents leave the index.
+- Local search API on the ingester's HTTP API: `/search`, per-document search, documents and outlines, `/status` and `/failures`, with each hit's file path, document type, pages, line, headings, labels, snippet and per-page boxes. See `docs/local-search-api.md`.
+- Chunks record their boxes per page (`metadata.locations`), and MCP search results name their file `Path` and `Pages`.
+- `ingester.service`: the search client closes when idle, a throttle holds conversions back on battery, under load and in low memory, and `idle_exit_s` ends an idle service. `HAIKU_RAG_LISTEN_FD` serves the API on an inherited socket.
+- `service/macos/`: a launchd agent, socket-activated, and the launcher that holds its Full Disk Access grant.
+
+### Changed
+
+- The `docling` extra installs `ocrmac` (macOS) and `onnxruntime`, the runtimes of Apple Vision OCR and RapidOCR.
+- `ingester.databases` entries may hold only `retired_sources` while their documents are deleted.
 
 ## [0.106.0] - 2026-11-03
 

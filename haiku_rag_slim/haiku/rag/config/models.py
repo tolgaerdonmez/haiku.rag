@@ -770,6 +770,14 @@ class ServiceConfig(ConfigModel):
         "and the embedding model it holds, is closed.",
     )
     snippet_chars: int = Field(default=300, gt=0)
+    idle_exit_s: float | None = Field(
+        default=None,
+        gt=0,
+        description="Exit once this long has passed without an API request "
+        "while nothing is queued or converting. For a service launchd starts "
+        "on demand, which starts it again on the next request; changes made "
+        "meanwhile are found by the sweep at that start. None never exits.",
+    )
     throttle: ThrottleConfig = Field(default_factory=ThrottleConfig)
 
 

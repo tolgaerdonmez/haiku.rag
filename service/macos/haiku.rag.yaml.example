@@ -1,0 +1,48 @@
+# The local search service's configuration. Paths use ${HOME}; adjust the
+# embedding model to the one the index is built with.
+environment: production
+storage:
+  data_dir: ${HOME}/Library/Application Support/haiku.rag
+lancedb:
+  databases:
+    files: ${HOME}/Library/Application Support/haiku.rag/files.lancedb
+  read_consistency_interval_seconds: 2
+embeddings:
+  model:
+    provider: openai
+    name: jina-embeddings-v5-omni-nano-retrieval
+    vector_dim: 768
+    base_url: http://127.0.0.1:8702/v1
+    api_key: local
+    query_prefix: "Query: "
+    document_prefix: "Document: "
+processing:
+  chunk_size: 256
+  pictures: none
+  conversion_options:
+    ocr_engine: ocrmac            # Apple Vision; RapidOCR is the retry
+    table_mode: fast
+    generate_page_images: false
+  supervisor:
+    enabled: true
+    # workers: 3                  # default: a quarter of the cores, at most 3
+    unit_timeout: 300
+    page_batch: 20
+    retry_ocr_engine: rapidocr
+ingester:
+  folders_register: folders.yaml  # beside this file
+  queue:
+    path: ${HOME}/Library/Application Support/haiku.rag/ingester.db
+  workers:
+    worker_count: 3
+    poll_idle_interval_s: 5
+  api:
+    host: 127.0.0.1
+    port: 8765
+  service:
+    search_idle_s: 300            # unload the search client after 5 idle minutes
+    idle_exit_s: 1800             # exit after 30 idle minutes; launchd restarts on demand
+    throttle:
+      on_battery: slow
+      max_load: 0.7
+      min_free_memory_percent: 10

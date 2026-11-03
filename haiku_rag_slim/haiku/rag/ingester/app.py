@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import os
 import signal
+import socket
 import sys
+import time
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
@@ -49,6 +52,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MANIFEST_EXTRA_KEY = "_manifest"
+
+# A listening socket the process inherited, as its file descriptor: a launcher
+# taking launchd's activated socket hands it on through this variable.
+LISTEN_FD_VARIABLE = "HAIKU_RAG_LISTEN_FD"
 
 
 def _api_access_log_enabled() -> bool:
@@ -777,6 +784,7 @@ class IngesterApp:
 
             stop_event = asyncio.Event()
             watcher = self._watch_register()
+            idle_exit = self._exit_when_idle(stop_event)
             loop = asyncio.get_running_loop()
             handlers: dict[int, Callable[[], None]] = {
                 signal.SIGINT: stop_event.set,
@@ -809,9 +817,10 @@ class IngesterApp:
                     api_server.should_exit = True
                 if api_task is not None:
                     await asyncio.gather(api_task, return_exceptions=True)
-                if watcher is not None:
-                    watcher.cancel()
-                    await asyncio.gather(watcher, return_exceptions=True)
+                for task in (watcher, idle_exit):
+                    if task is not None:
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
                 if self._api is not None:
                     assert self._api.search is not None
                     await self._api.search.aclose()
@@ -976,6 +985,28 @@ class IngesterApp:
             finally:
                 await self._stop_pool()
                 await self._pollers.close_sources()
+
+    def _exit_when_idle(self, stop: asyncio.Event) -> asyncio.Task | None:
+        """Set `stop` once `idle_exit_s` passed with no request and no work."""
+        idle_s = self._config.ingester.service.idle_exit_s
+        if idle_s is None:
+            return None
+
+        async def watch() -> None:
+            assert self._jobs is not None
+            started = time.monotonic()
+            while True:
+                await asyncio.sleep(min(30.0, idle_s / 4))
+                last = self._api.last_request_at if self._api is not None else 0.0
+                counts = await self._jobs.counts_by_status()
+                busy = counts.get("queued", 0) + counts.get("claimed", 0)
+                if busy or time.monotonic() - max(started, last) < idle_s:
+                    continue
+                logger.info("Idle for %gs with nothing to ingest: exiting", idle_s)
+                stop.set()
+                return
+
+        return asyncio.create_task(watch())
 
     def _watch_register(self) -> asyncio.Task | None:
         """Reload whenever the folder register file changes, until cancelled."""
@@ -1253,13 +1284,18 @@ class IngesterApp:
             lifespan="off",
         )
         server = uvicorn.Server(config)
-        logger.info(
-            "API listening on %s:%d%s",
-            ingester_cfg.api.host,
-            ingester_cfg.api.port,
-            ingester_cfg.api.root_path,
-        )
-        return asyncio.create_task(server.serve()), server
+        sockets = None
+        if (fd := os.environ.get(LISTEN_FD_VARIABLE)) is not None:
+            sockets = [socket.socket(fileno=int(fd))]
+            logger.info("API listening on inherited socket %s", fd)
+        else:
+            logger.info(
+                "API listening on %s:%d%s",
+                ingester_cfg.api.host,
+                ingester_cfg.api.port,
+                ingester_cfg.api.root_path,
+            )
+        return asyncio.create_task(server.serve(sockets=sockets)), server
 
 
 def _ingested_databases(
