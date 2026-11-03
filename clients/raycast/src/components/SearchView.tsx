@@ -6,7 +6,7 @@ import { ShownGroup, documentName, groupByDocument, locationLabel, pageLabel, to
 import { fileKind } from "../lib/doctype";
 import { preferences, resultLimit, searchService } from "../lib/preferences";
 import { renderPreview } from "../lib/preview/render";
-import { emphasiseMarkdown, emphasisePlain, escapeMarkdown, snippetSpans } from "../lib/text";
+import { emphasiseMarkdown, emphasisePlain, snippetSpans } from "../lib/text";
 import { DocumentGroup, SearchHit } from "../lib/types";
 import { HitActions } from "./HitActions";
 
@@ -50,7 +50,7 @@ function rowTitle(hit: SearchHit, query: string): string {
 /** The document's name with the passage's page beside it, as the pane's one heading line. */
 function header(hit: SearchHit): string {
   const where = locationLabel(hit);
-  return `### ${escapeMarkdown(documentName(hit))}${where ? `  \`${where}\`` : ""}`;
+  return `### ${documentName(hit)}${where ? `  \`${where}\`` : ""}`;
 }
 
 /** The passage as text, for files without a rendered preview. */

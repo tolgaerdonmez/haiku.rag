@@ -22,11 +22,20 @@ export function locationLabel(hit: SearchHit): string | undefined {
   return `${slides ? "Slides" : "Pages"} ${first}–${last}`;
 }
 
-/** The document's title, or its file name without the extension. */
+/**
+ * The document's title, or its file name without the extension, as a heading
+ * shows it: underscores as spaces, no empty brackets, no markdown characters.
+ */
 export function documentName(hit: SearchHit): string {
   const file = basename(hit.path);
-  if (hit.title && hit.title !== file) return hit.title;
-  return basename(file, extname(file)) || file;
+  const name = hit.title && hit.title !== file ? hit.title : basename(file, extname(file)) || file;
+  return (
+    name
+      .replace(/[_*`\\]+/g, " ")
+      .replace(/\[\s*\]|\(\s*\)/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() || file
+  );
 }
 
 export function headingTrail(hit: SearchHit): string {

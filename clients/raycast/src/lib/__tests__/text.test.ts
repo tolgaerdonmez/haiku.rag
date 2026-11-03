@@ -173,6 +173,11 @@ describe("citations and grouping", () => {
     expect(documentName(hit())).toBe("Country Guitar");
     expect(documentName(hit({ title: "Country Guitar.pdf" }))).toBe("Country Guitar");
     expect(documentName(hit({ title: undefined, path: "/x/notes" }))).toBe("notes");
+    expect(documentName(hit({ title: undefined, path: "/x/[Hanson,_Mark]_The_art_of_*solo*.pdf" }))).toBe(
+      "[Hanson, Mark] The art of solo",
+    );
+    expect(documentName(hit({ title: undefined, path: "/x/[]_Dave_Hunter,_Play.pdf" }))).toBe("Dave Hunter, Play");
+    expect(documentName(hit({ title: undefined, path: "/x/___.pdf" }))).toBe("___.pdf");
   });
 
   it("ranks files by their best passage", () => {
