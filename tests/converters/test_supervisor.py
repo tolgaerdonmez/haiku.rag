@@ -235,6 +235,35 @@ async def test_cancelling_a_conversion_kills_its_process(tmp_path):
     assert supervisor.processes == 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows has no signals to send a process"
+)
+async def test_a_conversion_outlives_stop_signals_to_its_process(tmp_path):
+    import os
+
+    supervisor = ConversionSupervisor(_config(), command=STUB)
+    [path] = _files(tmp_path, "slow.md")
+    task = asyncio.ensure_future(supervisor.convert_file(path))
+    while supervisor.busy == 0:
+        await asyncio.sleep(0.01)
+    [worker] = supervisor._pool.busy
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        os.kill(worker.process.pid, sig)
+    document = await task
+    # The first attempt finished: the retry would have used rapidocr.
+    assert _texts(document) == ["slow.md by ocrmac"]
+    await supervisor.aclose()
+
+
+def test_the_worker_ignores_stop_signals(monkeypatch):
+    ignored = []
+    monkeypatch.setattr(
+        supervisor_worker.signal, "signal", lambda sig, handler: ignored.append(sig)
+    )
+    supervisor_worker.ignore_stop_signals()
+    assert ignored == [signal.SIGINT, signal.SIGTERM]
+
+
 async def test_idle_processes_exit(tmp_path):
     supervisor = ConversionSupervisor(_config(idle_shutdown_s=0.2), command=STUB)
     [path] = _files(tmp_path, "a.md")

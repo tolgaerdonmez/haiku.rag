@@ -24,6 +24,8 @@ def convert(config, path, source_uri, page_range, ocr_engine):
         and page_range[0] <= 4 <= page_range[1]
     ):
         time.sleep(3600)
+    if name.startswith("slow"):
+        time.sleep(1.0)
     if name.startswith("crash"):
         os._exit(3)
     if name.startswith("bad"):

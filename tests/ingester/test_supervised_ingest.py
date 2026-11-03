@@ -3,6 +3,11 @@ document whose conversion hangs. The conversion process is the stub in
 tests/converters, so no docling model runs; chunking, embedding and storage
 are real, with the embedder answering locally."""
 
+import asyncio
+import contextlib
+import os
+import signal
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,13 +26,14 @@ from haiku.rag.config import (
     WorkerConfig,
 )
 from haiku.rag.converters import supervisor as supervisor_module
-from haiku.rag.converters.supervisor import close_supervisors
+from haiku.rag.converters.supervisor import close_supervisors, running_supervisors
 from haiku.rag.embeddings import EmbedderWrapper
 from haiku.rag.ingester.app import IngesterApp
 from haiku.rag.ingester.queue.migrations import open_queue
 from haiku.rag.ingester.queue.models import JobStatus
 from haiku.rag.ingester.queue.repository import JobRepo
 from tests.converters.test_supervisor import STUB
+from tests.ingester.conftest import _wait_until
 
 
 @pytest.fixture(autouse=True)
@@ -183,3 +189,53 @@ async def test_serving_holds_conversions_through_the_throttle(tmp_path, use_clie
         assert app._throttle is not None
         assert supervisor_module._default_gate == app._throttle.gate
     assert supervisor_module._default_gate is None
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows has no signals to send a process"
+)
+async def test_a_document_converting_when_serve_stops_is_queued_again(tmp_path):
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    (folder / "hang-always.md").write_text("# hang\n", encoding="utf-8")
+    config = _config(tmp_path, folder)
+    config.processing.supervisor.unit_timeout = 60.0
+    # Long enough for a retry to start, and to be signalled in turn.
+    config.ingester.workers.shutdown_grace_s = 4.0
+    serving = asyncio.create_task(IngesterApp(config=config).serve(api=False))
+
+    def conversions() -> list[asyncio.subprocess.Process]:
+        return [
+            worker.process
+            for supervisor in running_supervisors()
+            for worker in (*supervisor._pool.busy, *supervisor._pool.idle)
+            if worker.process.returncode is None
+        ]
+
+    async def stop_every_process_of_the_service() -> None:
+        while True:
+            for process in conversions():
+                os.kill(process.pid, signal.SIGTERM)
+            await asyncio.sleep(0.02)
+
+    await _wait_until(
+        lambda: any(s.busy for s in running_supervisors()),
+        timeout=30.0,
+        serving=serving,
+    )
+    signalling = asyncio.create_task(stop_every_process_of_the_service())
+    try:
+        serving.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait_for(serving, timeout=10.0)
+    finally:
+        signalling.cancel()
+
+    engine = await open_queue(config.ingester.queue)
+    try:
+        [job] = await JobRepo(engine).list_jobs()
+    finally:
+        await engine.dispose()
+    assert job.status == JobStatus.QUEUED
+    assert job.attempts == 0

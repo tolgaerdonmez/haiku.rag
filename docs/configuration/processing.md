@@ -346,6 +346,11 @@ since they never reach a model. The CLI, the Python client and the
   to `threads_per_worker` threads and, with `background`, runs niced and in
   macOS's background band. A process exits after `idle_shutdown_s` without work
   and is replaced after `max_units_per_worker` units.
+- **Stopping**: the conversion processes ignore SIGINT and SIGTERM, which a
+  terminal's Ctrl+C or a service manager sends to every process of the service.
+  The host stops them: an idle one when it closes, a busy one when its unit
+  ends or is cancelled. A document the ingester was converting when it stopped
+  goes back to the queue, its attempt not counted.
 - **Directories**: `haiku-rag add-src DIR` ingests `workers` files at a time,
   keeps going past a file that fails, lists each failure with its reason and
   exits 1 when any failed.

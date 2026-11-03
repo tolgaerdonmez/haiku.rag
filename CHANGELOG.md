@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- With supervised conversion, a document being converted when the ingester stops goes back to the queue: its conversion processes no longer die of the stop signal, which recorded it dead (`conversion process died (exit -15)`).
 - A PDF attachment the converter cannot parse, such as the MathML equations PowerPoint embeds, is skipped with a warning instead of failing its PDF.
 
 ## [0.106.0] - 2026-11-03

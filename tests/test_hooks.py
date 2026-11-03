@@ -1793,14 +1793,11 @@ async def test_an_attachment_that_cannot_be_parsed_is_skipped(
         async with HaikuRAG(temp_db_path, create=True) as client:
             client._hooks = [recording]
             await client.create_document_from_source(path)
-            children = await client.list_documents(
-                filter=parent_uri_filter(parent_uri)
-            )
+            children = await client.list_documents(filter=parent_uri_filter(parent_uri))
 
     assert [c.uri for c in children] == [f"{parent_uri}#attachment=a.txt"]
     assert [r.getMessage() for r in records] == [
-        f"Skipping attachment 'equation-1.xml' in {parent_uri}: "
-        "File format not allowed"
+        f"Skipping attachment 'equation-1.xml' in {parent_uri}: File format not allowed"
     ]
     assert _ingested(recording) == [
         ("create", f"{parent_uri}#attachment=a.txt"),

@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import struct
 import sys
 from collections.abc import Callable
@@ -50,6 +51,14 @@ def lower_priority() -> None:
 
         libc = ctypes.CDLL(None, use_errno=True)
         libc.setpriority(_PRIO_DARWIN_PROCESS, 0, _PRIO_DARWIN_BG)
+
+
+def ignore_stop_signals() -> None:
+    """Leave this process's stop to its supervisor, which ends its input or
+    kills it. A terminal's Ctrl+C and a service manager signal every process of
+    the service, and the host stops by draining or releasing its jobs."""
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, signal.SIG_IGN)
 
 
 def docling_convert(
@@ -116,6 +125,7 @@ def main(
 ) -> None:  # pragma: no cover - runs in the conversion process
     """Serve over stdin and stdout. The protocol owns the real stdout, and
     whatever the converter prints goes to stderr."""
+    ignore_stop_signals()
     replies = os.fdopen(os.dup(sys.stdout.fileno()), "wb")
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     serve(sys.stdin.buffer, replies, convert)
