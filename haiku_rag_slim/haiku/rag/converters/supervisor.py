@@ -6,7 +6,8 @@ import logging
 import os
 import sys
 import weakref
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -119,8 +120,8 @@ class ConversionSupervisor:
     fails in any way gets one retry, with `retry_ocr_engine` as the OCR engine.
     A PDF longer than `page_batch` pages converts as batches of pages spread over
     the pool, and the batches are joined keeping every page's number.
-    `before_unit`, when set, is awaited before each unit starts: a host uses it
-    to hold conversions back.
+    `gate`, when set, is entered around each unit: a host uses it to hold
+    conversions back.
     """
 
     def __init__(
@@ -128,12 +129,12 @@ class ConversionSupervisor:
         config: AppConfig,
         *,
         command: Sequence[str] | None = None,
-        before_unit: Callable[[], Awaitable[None]] | None = None,
+        gate: "Callable[[], AbstractAsyncContextManager[None]] | None" = None,
     ):
         self.config = config
         self.settings = config.processing.supervisor
         self.command = tuple(command or WORKER_COMMAND)
-        self.before_unit = before_unit
+        self.gate = gate if gate is not None else _default_gate
         self._slots = asyncio.Semaphore(self.settings.workers)
         self._pool = _Pool()
         self._closing = False
@@ -231,9 +232,7 @@ class ConversionSupervisor:
             }
         ).encode()
         timeout = self.settings.unit_timeout
-        async with self._slots:
-            if self.before_unit is not None:
-                await self.before_unit()
+        async with self._slots, (self.gate or contextlib.nullcontext)():
             worker = await self._checkout()
             reusable = False
             try:
@@ -373,6 +372,17 @@ def _keep_page_numbers(
         if page_no not in document.pages:
             width, height = sizes[page_no - 1]
             document.add_page(page_no=page_no, size=Size(width=width, height=height))
+
+
+_default_gate: "Callable[[], AbstractAsyncContextManager[None]] | None" = None
+
+
+def set_default_gate(
+    gate: "Callable[[], AbstractAsyncContextManager[None]] | None",
+) -> None:
+    """The gate of supervisors created without one from now on."""
+    global _default_gate
+    _default_gate = gate
 
 
 _SUPERVISORS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, ConversionSupervisor]]" = weakref.WeakKeyDictionary()

@@ -505,6 +505,12 @@ ingester:
     root_path: ""                             # e.g. /ingester behind a proxy
 ```
 
+### Search endpoints
+
+The API also answers searches over the configured databases, the documents' outlines, the folder register, a status summary and the list of failed documents: the [local search API](local-search-api.md). Searches go through one read-only client opened on the first search and closed after `ingester.service.search_idle_s` without one, which releases its embedding model.
+
+With supervised conversion on, `ingester.service.throttle` holds conversions back to spare the machine: one at a time on battery (`on_battery: slow`, or `pause`), and none while the load per core is above `max_load` or less than `min_free_memory_percent` of memory is free (macOS). A conversion already running is never stopped, and search is never held back.
+
 ### Behind a reverse proxy
 
 `ingester.api.root_path` (or `serve --root-path /ingester`) serves the control plane under a sub-path, such as `https://host/ingester/`. The OpenAPI docs and the dashboard's requests follow the prefix. The value is normalized to one leading slash and no trailing slash. Strip the prefix at the proxy, for example with nginx:

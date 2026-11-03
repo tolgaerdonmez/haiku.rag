@@ -730,6 +730,49 @@ class APIConfig(ConfigModel):
         return trimmed
 
 
+class ThrottleConfig(ConfigModel):
+    """When the service holds supervised conversions back to spare the
+    machine. Search is never held back."""
+
+    on_battery: Literal["run", "slow", "pause"] = Field(
+        default="slow",
+        description="On battery power: convert as usual, one unit at a time, "
+        "or not at all until on power again.",
+    )
+    max_load: float | None = Field(
+        default=0.7,
+        gt=0,
+        description="Pause while the one-minute load average per core is "
+        "above this. None never pauses for load.",
+    )
+    min_free_memory_percent: int | None = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="Pause while less memory than this is free (macOS). None "
+        "never pauses for memory.",
+    )
+    check_interval_s: float = Field(
+        default=15.0,
+        gt=0,
+        description="How often the conditions are read again.",
+    )
+
+
+class ServiceConfig(ConfigModel):
+    """The local search service: `haiku-ingester serve` answering searches
+    over its HTTP API, and how lightly it runs."""
+
+    search_idle_s: float = Field(
+        default=300.0,
+        gt=0,
+        description="Seconds without a search after which the search client, "
+        "and the embedding model it holds, is closed.",
+    )
+    snippet_chars: int = Field(default=300, gt=0)
+    throttle: ThrottleConfig = Field(default_factory=ThrottleConfig)
+
+
 class MetadataProviderConfig(ConfigModel):
     """A metadata provider named by entry point, with keyword arguments for its
     factory."""
@@ -876,6 +919,7 @@ class IngesterConfig(ConfigModel):
     queue: QueueConfig = Field(default_factory=QueueConfig)
     workers: WorkerConfig = Field(default_factory=WorkerConfig)
     api: APIConfig = Field(default_factory=APIConfig)
+    service: ServiceConfig = Field(default_factory=ServiceConfig)
 
     @model_validator(mode="before")
     @classmethod

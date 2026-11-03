@@ -119,20 +119,20 @@ Hit fields:
 | `snippet` | string | At most about 300 characters of the passage around the best match, with `...` where cut. |
 | `snippet_highlights` | [int, int][] | `[start, end)` character offsets into `snippet` of query words found in it. |
 | `text` | string | The whole matched passage. |
-| `pages` | object[] | Per page: `page`, `width`, `height`, and `boxes` (`left`, `top`, `right`, `bottom`), see Coordinates. |
+| `pages` | object[] | Per page: `page`, `width`, `height`, and `boxes` (`left`, `top`, `right`, `bottom`), see Coordinates. One box per document element (paragraph, list item, table, picture) of the passage. |
 | `context` | string or null | The passage expanded to its section, when `context=true`. |
 
 ### `GET /documents/{document_id}/search`
 
 Search within one document. Takes `q`, `limit`, `type` and `context` as above,
-plus `database` (required when more than one database is configured). Same
-response shape; every hit has this `document_id`.
+plus an optional `database` to look in only one. Same response shape; every
+hit has this `document_id`.
 
 ## Documents
 
 ### `GET /documents/{document_id}`
 
-Query: `database` (required when more than one database is configured).
+Query: `database`, optional: without it every database is asked.
 
 ```json
 {
@@ -281,6 +281,42 @@ Queues every failure again, optionally only `folder`'s. Returns
 
 Unauthenticated liveness, the ingester's health response (`status` is `ok` or
 `degraded`).
+
+## Running it
+
+The service is `haiku-ingester serve` with the API enabled, supervised
+conversion on, and a folder register:
+
+```yaml
+lancedb:
+  databases:
+    files: ~/Library/Application Support/haiku.rag/files.lancedb
+  read_consistency_interval_seconds: 2   # searches see new documents quickly
+processing:
+  conversion_options:
+    ocr_engine: ocrmac
+  supervisor:
+    enabled: true
+ingester:
+  folders_register: folders.yaml
+  api:
+    host: 127.0.0.1
+    port: 8765
+  workers:
+    worker_count: 3
+    poll_idle_interval_s: 5
+  service:
+    search_idle_s: 300        # close the search client after 5 idle minutes
+    throttle:
+      on_battery: slow        # run | slow | pause
+      max_load: 0.7           # pause conversions above this load per core
+      min_free_memory_percent: 10
+```
+
+Pages and boxes come from what each chunk recorded when it was indexed. A
+database indexed before chunks recorded them still answers with boxes, read
+from the stored document at search time (slower); `haiku-rag rebuild
+--rechunk` records them.
 
 ## MCP
 

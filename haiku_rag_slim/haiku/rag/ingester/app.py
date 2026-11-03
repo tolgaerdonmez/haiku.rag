@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from haiku.rag.ingester.api.server import APIState
     from haiku.rag.ingester.metadata import MetadataProvider
     from haiku.rag.ingester.pollers.base import BasePoller
+    from haiku.rag.service.throttle import Throttle
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +257,7 @@ class IngesterApp:
         self._pool: WorkerPool | None = None
         self._pollers: PollerManager | None = None
         self._api: APIState | None = None
+        self._throttle: Throttle | None = None
         self._reload_lock = asyncio.Lock()
         self._reloads: set[asyncio.Task] = set()
         self._signal_reload_queued = False
@@ -727,6 +729,22 @@ class IngesterApp:
         """Run pollers + workers (and the HTTP API when enabled) until a
         SIGINT/SIGTERM is received. Drains in-flight work on shutdown."""
         ingester_cfg = self._config.ingester
+        if self._config.processing.supervisor.enabled:
+            from haiku.rag.converters.supervisor import set_default_gate
+            from haiku.rag.service.throttle import Throttle
+
+            self._throttle = Throttle(ingester_cfg.service.throttle)
+            set_default_gate(self._throttle.gate)
+        try:
+            await self._serve(api)
+        finally:
+            if self._throttle is not None:
+                from haiku.rag.converters.supervisor import set_default_gate
+
+                set_default_gate(None)
+
+    async def _serve(self, api: bool) -> None:
+        ingester_cfg = self._config.ingester
         async with self._resources():
             assert self._pollers is not None and self._pool is not None
             await self._pollers.start()
@@ -794,6 +812,9 @@ class IngesterApp:
                 if watcher is not None:
                     watcher.cancel()
                     await asyncio.gather(watcher, return_exceptions=True)
+                if self._api is not None:
+                    assert self._api.search is not None
+                    await self._api.search.aclose()
                 await self._pollers.stop()
                 await self._stop_pool()
                 await self._pollers.close_sources()
@@ -1136,6 +1157,8 @@ class IngesterApp:
         self._databases = list(wanted.values())
         if self._api is not None:
             self._api.config = config
+            assert self._api.search is not None, "the app's API state searches"
+            self._api.search.reconfigure(config)
         return report
 
     async def _read_configuration(
@@ -1179,6 +1202,7 @@ class IngesterApp:
         """The API's view of the running app: the maps it reads are the app's
         own, so they follow databases as they are added and removed."""
         from haiku.rag.ingester.api.server import APIState
+        from haiku.rag.service.search import SearchService
 
         assert (
             self._jobs is not None and self._sync is not None and self._pool is not None
@@ -1196,6 +1220,8 @@ class IngesterApp:
                 claim_lock=self._pool.claim_lock,
                 reload=self.reload,
                 request_reload=self._reload_on_signal,
+                search=SearchService(self._config),
+                throttle=self._throttle,
             )
         return self._api
 

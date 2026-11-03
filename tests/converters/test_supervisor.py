@@ -4,6 +4,7 @@ import json
 import signal
 import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -24,6 +25,7 @@ from haiku.rag.converters.supervisor import (
     close_supervisors,
     get_supervisor,
     running_supervisors,
+    set_default_gate,
 )
 from haiku.rag.converters.supervisor_worker import read_frame, write_frame
 
@@ -105,6 +107,39 @@ async def test_a_hanging_document_costs_only_itself(tmp_path):
     finally:
         await supervisor.aclose()
     assert supervisor.processes == 0
+
+
+async def test_a_unit_that_overruns_is_killed(tmp_path):
+    supervisor = ConversionSupervisor(
+        _config(unit_timeout=0.5, retry_ocr_engine=None), command=STUB
+    )
+    [path] = _files(tmp_path, "hang-always.md")
+    try:
+        with pytest.raises(SupervisedConversionTimeoutError) as failed:
+            await supervisor.convert_file(path)
+    finally:
+        await supervisor.aclose()
+    assert failed.value.reason == (
+        "timed out after 0.5s (ocrmac); retried with ocrmac: timed out after 0.5s"
+    )
+    assert supervisor.processes == 0
+
+
+async def test_convert_routes_docling_formats_through_the_supervisor(
+    tmp_path, monkeypatch
+):
+    from haiku.rag.client.processing import convert
+
+    monkeypatch.setattr(supervisor_module, "WORKER_COMMAND", STUB)
+    config = _config()
+    [markdown] = _files(tmp_path, "a.md")
+    script = tmp_path / "s.py"
+    script.write_text("print('hi')", encoding="utf-8")
+    try:
+        assert _texts(await convert(config, markdown)) == ["a.md by ocrmac"]
+        assert any("print" in text for text in _texts(await convert(config, script)))
+    finally:
+        await close_supervisors()
 
 
 async def test_a_crash_and_an_error_fail_with_their_reasons(tmp_path):
@@ -224,11 +259,13 @@ async def test_closing_lets_a_running_unit_finish(tmp_path):
     seen = asyncio.Event()
     release = asyncio.Event()
 
-    async def before_unit():
+    @asynccontextmanager
+    async def gate():
         seen.set()
         await release.wait()
+        yield
 
-    supervisor = ConversionSupervisor(_config(), command=STUB, before_unit=before_unit)
+    supervisor = ConversionSupervisor(_config(), command=STUB, gate=gate)
     [path] = _files(tmp_path, "a.md")
     task = asyncio.ensure_future(supervisor.convert_file(path))
     await seen.wait()
@@ -236,6 +273,28 @@ async def test_closing_lets_a_running_unit_finish(tmp_path):
     release.set()
     assert _texts(await task) == ["a.md by ocrmac"]
     assert supervisor.processes == 0
+
+
+async def test_the_default_gate_applies_to_new_supervisors(tmp_path):
+    entered = []
+
+    @asynccontextmanager
+    async def gate():
+        entered.append(1)
+        yield
+
+    set_default_gate(gate)
+    try:
+        supervisor = ConversionSupervisor(_config(), command=STUB)
+    finally:
+        set_default_gate(None)
+    [path] = _files(tmp_path, "a.md")
+    try:
+        await supervisor.convert_file(path)
+    finally:
+        await supervisor.aclose()
+    assert entered == [1]
+    assert ConversionSupervisor(_config(), command=STUB).gate is None
 
 
 async def test_closing_cancels_idle_timers(tmp_path):

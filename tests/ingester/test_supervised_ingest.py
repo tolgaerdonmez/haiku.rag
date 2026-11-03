@@ -29,8 +29,6 @@ from haiku.rag.ingester.queue.models import JobStatus
 from haiku.rag.ingester.queue.repository import JobRepo
 from tests.converters.test_supervisor import STUB
 
-pytestmark = pytest.mark.slow
-
 
 @pytest.fixture(autouse=True)
 def local_conversion_and_embedding(monkeypatch):
@@ -85,6 +83,7 @@ def _folder(tmp_path: Path) -> Path:
     return folder
 
 
+@pytest.mark.slow
 async def test_the_ingester_records_a_hanging_document_and_ingests_the_rest(
     tmp_path,
 ):
@@ -112,6 +111,7 @@ async def test_the_ingester_records_a_hanging_document_and_ingests_the_rest(
     }
 
 
+@pytest.mark.slow
 async def test_a_directory_ingest_reports_a_hanging_document_and_keeps_the_rest(
     tmp_path,
 ):
@@ -148,3 +148,38 @@ async def test_a_clean_directory_ingest_returns_every_document(tmp_path):
 
     assert isinstance(documents, list)
     assert len(documents) == 3
+
+
+async def test_a_directory_ingest_keeps_going_past_a_failing_file(tmp_path):
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    for name in ("a.md", "bad.md"):
+        (folder / name).write_text(f"# {name}\n", encoding="utf-8")
+    config = _config(tmp_path, folder)
+
+    try:
+        async with HaikuRAG(config=config, create=True) as rag:
+            with pytest.raises(DirectoryIngestError) as failed:
+                await rag.create_document_from_source(folder)
+    finally:
+        await close_supervisors()
+
+    [reason] = failed.value.failures.values()
+    assert "ValueError: cannot parse" in reason
+    assert [doc.uri for doc in failed.value.documents] == [(folder / "a.md").as_uri()]
+
+
+async def test_serving_holds_conversions_through_the_throttle(tmp_path, use_client):
+    from tests.ingester.conftest import _mock_client, _serving
+
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    config = _config(tmp_path, folder)
+    config.ingester.workers.shutdown_grace_s = 0.2
+    use_client(_mock_client())
+    app = IngesterApp(config=config)
+
+    async with _serving(app):
+        assert app._throttle is not None
+        assert supervisor_module._default_gate == app._throttle.gate
+    assert supervisor_module._default_gate is None
