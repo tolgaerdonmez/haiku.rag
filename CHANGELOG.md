@@ -10,15 +10,11 @@
 - Chunks record their boxes per page (`metadata.locations`), and MCP search results name their file `Path` and `Pages`.
 - `ingester.service`: the search client closes when idle, a throttle holds conversions back on battery, under load and in low memory, and `idle_exit_s` ends an idle service. `HAIKU_RAG_LISTEN_FD` serves the API on an inherited socket.
 - `ingester.service.vacuum_after_indexing`: once the queue drains after at least `min_documents` (50) documents were indexed or removed, `serve` vacuums that database with `retention_seconds` (0), holding searches back meanwhile.
-- `service/macos/`: a launchd agent, socket-activated, and the launcher that holds its Full Disk Access grant.
-- `scripts/macos-service.sh`: installs the service from a checkout (`install`, `status`, `restart`, `pause`, `resume`, `logs`, `cli`, `uninstall`), with the Raycast extension and its Cmd+Shift+F Karabiner rule. `service/macos/build.sh` renders every installed file, the configuration `service/macos/haiku.rag.yaml` included.
-- `scripts/install-macos.sh`: an interactive installer for the service, the Core ML model (downloaded from Hugging Face and checksummed), the Raycast extension, the Cmd+Shift+F hotkey and the folders to index. Its terminal menu (`scripts/install-macos-tui.py`, run with uv) checks or unchecks every component, picks the model's source and the folders, and installs exactly what is checked; without uv it falls back to a numbered menu. It runs from a checkout or as a one-liner that clones the fork, has a non-interactive `--yes` mode, a `--dry-run` that shows the menu and the plan, and an `--uninstall` that keeps the index unless asked.
 
 ### Changed
 
 - The `docling` extra installs `ocrmac` (macOS) and `onnxruntime`, the runtimes of Apple Vision OCR and RapidOCR.
 - `ingester.databases` entries may hold only `retired_sources` while their documents are deleted.
-- The service configuration chunks at 1024 tokens, for a Core ML model with functions up to 2048 tokens.
 
 ## [0.106.0] - 2026-11-03
 
