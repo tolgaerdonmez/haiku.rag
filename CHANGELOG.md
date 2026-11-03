@@ -16,6 +16,10 @@
 - The `docling` extra installs `ocrmac` (macOS) and `onnxruntime`, the runtimes of Apple Vision OCR and RapidOCR.
 - `ingester.databases` entries may hold only `retired_sources` while their documents are deleted.
 
+### Fixed
+
+- A PDF attachment the converter cannot parse, such as the MathML equations PowerPoint embeds, is skipped with a warning instead of failing its PDF.
+
 ## [0.106.0] - 2026-11-03
 
 ### Added
