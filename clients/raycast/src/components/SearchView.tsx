@@ -216,7 +216,11 @@ export function SearchView({ scope, initialQuery = "" }: { scope?: DocumentScope
         const drillIn = <SearchView scope={scopeOf(group)} initialQuery={query} />;
         const count = `${group.hits.length} ${group.hits.length === 1 ? "passage" : "passages"}`;
         return (
-          <List.Section key={group.key} title={group.title} subtitle={`${count} · ${basename(dirname(group.path))}`}>
+          <List.Section
+            key={group.key}
+            title={documentName(group.hits[0])}
+            subtitle={`${count} · ${basename(dirname(group.path))}`}
+          >
             {section.shown.map((hit) => {
               const page = pageLabel(hit);
               const heading = hit.headings.at(-1);
