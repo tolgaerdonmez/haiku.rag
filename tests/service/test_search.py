@@ -321,6 +321,10 @@ async def test_located_documents_are_kept_a_few_at_a_time(tmp_path, seeded):
         response = await service.search("unlocated", limit=10, search_type="fts")
         assert len(response.hits) == 6
         assert all(hit.pages[0].page == 1 for hit in response.hits)
+        # Without a stored title a hit is named after its file.
+        assert sorted(hit.title or "" for hit in response.hits) == [
+            f"u{n}.pdf" for n in range(6)
+        ]
         assert len(service._docling) == 4
         # A document read again comes from the kept ones.
         again = await service.search("unlocated", limit=10, search_type="fts")

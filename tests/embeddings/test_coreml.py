@@ -327,6 +327,15 @@ async def test_aclose_releases_the_model_and_the_next_call_reloads(model_dir, fa
     assert [f for _, _, f in fake.loaded] == ["L4", "L4"]
 
 
+async def test_release_unloads_the_model_until_the_next_call(model_dir, fake):
+    embedder = CoreMLEmbedder(str(model_dir), DIM)
+    await embedder.embed_query("w1")
+    await embedder.release()
+    await embedder.embed_query("w1")
+
+    assert [f for _, _, f in fake.loaded] == ["L4", "L4"]
+
+
 async def test_a_temporary_compile_is_removed_on_close(model_dir, fake, monkeypatch):
     monkeypatch.setattr(coreml.tempfile, "mkdtemp", _unwritable)
     embedder = CoreMLEmbedder(str(model_dir), DIM)

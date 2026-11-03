@@ -24,7 +24,9 @@ background priority. The files live in `service/macos/`:
   most `processing.supervisor.workers` at once, and exit after a minute idle.
   The throttle holds conversions to one at a time on battery and pauses them
   under load or low memory. The search client, with its embedding model, is
-  closed after `ingester.service.search_idle_s` without a search.
+  closed after `ingester.service.search_idle_s` without a search, and the
+  ingesting databases release their embedding models after as long without
+  work.
 - **Crashes** restart it (`KeepAlive` on an unsuccessful exit), at most every
   30 s.
 

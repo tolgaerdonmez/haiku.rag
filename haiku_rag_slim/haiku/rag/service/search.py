@@ -369,7 +369,7 @@ class SearchService:
             document_id=result.document_id,
             database=result.source,
             folder_id=meta.get("source_id"),
-            title=result.document_title,
+            title=result.document_title or (path.name if path is not None else None),
             path=str(path) if path is not None else None,
             uri=result.document_uri,
             document_type=kind,

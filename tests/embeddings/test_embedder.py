@@ -1146,3 +1146,11 @@ def test_prefix_on_unsupported_provider_raises(provider, field):
     )
     with pytest.raises(ValueError, match="prefix"):
         get_embedder(config)
+
+
+async def test_releasing_an_embedder_without_a_local_model_does_nothing():
+    from pydantic_ai.embeddings import Embedder, TestEmbeddingModel
+
+    embedder = EmbedderWrapper(Embedder(TestEmbeddingModel(dimensions=2)), 2)
+    await embedder.release()
+    assert await embedder.embed_query("x") is not None

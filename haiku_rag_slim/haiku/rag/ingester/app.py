@@ -785,6 +785,7 @@ class IngesterApp:
             stop_event = asyncio.Event()
             watcher = self._watch_register()
             idle_exit = self._exit_when_idle(stop_event)
+            release = asyncio.create_task(self._release_models_when_idle())
             loop = asyncio.get_running_loop()
             handlers: dict[int, Callable[[], None]] = {
                 signal.SIGINT: stop_event.set,
@@ -817,7 +818,7 @@ class IngesterApp:
                     api_server.should_exit = True
                 if api_task is not None:
                     await asyncio.gather(api_task, return_exceptions=True)
-                for task in (watcher, idle_exit):
+                for task in (watcher, idle_exit, release):
                     if task is not None:
                         task.cancel()
                         await asyncio.gather(task, return_exceptions=True)
@@ -985,6 +986,26 @@ class IngesterApp:
             finally:
                 await self._stop_pool()
                 await self._pollers.close_sources()
+
+    async def _release_models_when_idle(self) -> None:
+        """Release the databases' embedding models after `search_idle_s` with no work."""
+        assert self._jobs is not None
+        idle_s = self._config.ingester.service.search_idle_s
+        quiet_since: float | None = None
+        released = False
+        while True:
+            await asyncio.sleep(min(15.0, idle_s / 4))
+            counts = await self._jobs.counts_by_status()
+            if counts.get("queued", 0) + counts.get("claimed", 0):
+                quiet_since, released = None, False
+                continue
+            now = time.monotonic()
+            quiet_since = quiet_since if quiet_since is not None else now
+            if released or now - quiet_since < idle_s:
+                continue
+            for database in list(self._running.values()):
+                await database.client.store.embedder.release()
+            released = True
 
     def _exit_when_idle(self, stop: asyncio.Event) -> asyncio.Task | None:
         """Set `stop` once `idle_exit_s` passed with no request and no work."""

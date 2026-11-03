@@ -89,6 +89,9 @@ class EmbedderWrapper:
             "cohere model."
         )
 
+    async def release(self) -> None:
+        """Unload a model held in this process; the next embed loads it again."""
+
     async def aclose(self) -> None:
         """Release resources held by the embedder."""
         if self._provider is not None:

@@ -64,6 +64,9 @@ class CoreMLEmbedder(EmbedderWrapper):
                 self._session = _Session(self._dir, self._vector_dim)
             return self._session.encode(texts)
 
+    async def release(self) -> None:
+        await asyncio.to_thread(self._unload)
+
     async def aclose(self) -> None:
         await asyncio.to_thread(self._unload)
 
