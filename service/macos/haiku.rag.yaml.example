@@ -1,5 +1,6 @@
 # The local search service's configuration. Paths use ${HOME}; adjust the
-# embedding model to the one the index is built with.
+# embedding model to the one the index is built with; the coreml model directory
+# holds model.mlpackage and tokenizer.json (examples/coreml converts it).
 environment: production
 storage:
   data_dir: ${HOME}/Library/Application Support/haiku.rag
@@ -9,11 +10,9 @@ lancedb:
   read_consistency_interval_seconds: 2
 embeddings:
   model:
-    provider: openai
-    name: jina-embeddings-v5-omni-nano-retrieval
+    provider: coreml              # the Neural Engine, in-process
+    name: ${HOME}/Library/Application Support/haiku.rag/models/jina-nano-coreml
     vector_dim: 768
-    base_url: http://127.0.0.1:8702/v1
-    api_key: local
     query_prefix: "Query: "
     document_prefix: "Document: "
 processing:

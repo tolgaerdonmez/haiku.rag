@@ -87,10 +87,13 @@ async def test_a_hanging_document_costs_only_itself(tmp_path):
         )
         elapsed = time.monotonic() - started
 
-        assert _texts(results[0]) == ["a.md by ocrmac"]
-        assert _texts(results[2]) == ["hang-once.md by rapidocr"]
-        assert _texts(results[3]) == ["b.md by ocrmac"]
-        failure = results[1]
+        first, failure, recovered, last = results
+        assert isinstance(first, DoclingDocument)
+        assert isinstance(recovered, DoclingDocument)
+        assert isinstance(last, DoclingDocument)
+        assert _texts(first) == ["a.md by ocrmac"]
+        assert _texts(recovered) == ["hang-once.md by rapidocr"]
+        assert _texts(last) == ["b.md by ocrmac"]
         assert isinstance(failure, SupervisedConversionTimeoutError)
         assert isinstance(failure, ConversionTimeoutError)
         assert not failure.converter_wedged

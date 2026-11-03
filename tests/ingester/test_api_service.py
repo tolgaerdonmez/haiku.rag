@@ -67,7 +67,7 @@ async def test_search_refuses_an_unknown_database(state):
 
 
 async def test_search_within_a_document(state):
-    notes = state.ids["notes"]  # ty: ignore[unresolved-attribute]
+    notes = state.ids["notes"]
     async with _client(state) as client:
         response = await client.get(
             f"/documents/{notes}/search",
@@ -84,7 +84,7 @@ async def test_search_within_a_document(state):
 
 
 async def test_documents_and_outlines(tmp_path, state):
-    book = state.ids["book"]  # ty: ignore[unresolved-attribute]
+    book = state.ids["book"]
     async with _client(state) as client:
         document = (await client.get(f"/documents/{book}")).json()
         outline = (
