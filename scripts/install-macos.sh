@@ -19,7 +19,8 @@
 #   --model-from DIR           a model directory you have (model.mlpackage, tokenizer.json)
 # Other:
 #   -y, --yes                  ask nothing: install the recommended set
-#   --dry-run                  check this Mac and print the plan, change nothing
+#   --dry-run                  check this Mac, show the menu (on a terminal, without
+#                              --yes) and print the plan; change nothing
 #   --uninstall                remove what this installer installs; the index is
 #                              kept unless --delete-index, indexed files are never touched
 #
@@ -29,7 +30,9 @@
 # there. HAIKU_RAG_REPO and HAIKU_RAG_REF pick another repository or branch,
 # HAIKU_RAG_MODEL_REPO another model repository and HF_ENDPOINT another Hugging
 # Face host. Prompts read the terminal, so they work when the script itself
-# arrives on stdin.
+# arrives on stdin. The menu is scripts/install-macos-tui.py, run with uv; without
+# uv, without a terminal it can draw on, or with HAIKU_RAG_TUI=0, a numbered menu
+# asks instead.
 set -eu
 
 repo_url=${HAIKU_RAG_REPO:-https://github.com/tolgaerdonmez/haiku.rag.git}
@@ -72,7 +75,9 @@ want_model=
 want_raycast=
 want_hotkey=
 want_folders=
+want_fda=
 folders=
+folders_chosen=0
 model_repo=${HAIKU_RAG_MODEL_REPO:-}
 model_revision=main
 model_sha256=
@@ -135,7 +140,7 @@ usage() {
 
 interactive=0
 choose_mode() {
-    if [ "$yes" = 0 ] && [ "$dry_run" = 0 ] && (: </dev/tty) 2>/dev/null; then
+    if [ "$yes" = 0 ] && { [ "$dry_run" = 0 ] || [ "$uninstall" = 0 ]; } && (: </dev/tty) 2>/dev/null; then
         interactive=1
     fi
 }
@@ -351,6 +356,7 @@ describe() {
         raycast) printf 'Raycast extension: Search Documents, Manage Indexed Folders (%s)' "$(human_kb $size_raycast)" ;;
         hotkey) printf 'Cmd+Shift+F opens the search, through Karabiner (takes Cmd+Shift+F from other apps)' ;;
         folders) printf 'Folders to index, asked next' ;;
+        fda) printf 'Afterwards, open System Settings to grant the service Full Disk Access (for ~/Documents, ~/Desktop, ~/Downloads, iCloud)' ;;
     esac
 }
 
@@ -381,7 +387,77 @@ show_menu() {
     done
 }
 
+# --- the menu ----------------------------------------------------------------
+
+# The facts the menu shows, as key=value lines (see install-macos-tui.py).
+tui_spec() {
+    printf 'dry_run=%s\nhome=%s\nhf_endpoint=%s\n' "$dry_run" "$HOME" "$hf_endpoint"
+    if [ -x "$launcher" ]; then fda_default=0; else fda_default=1; fi
+    present=$(registered_folders)
+    for c in $components fda; do
+        if available $c; then a=1; r=; else a=0; r=$(unavailable_reason $c); fi
+        if [ "$c" = fda ]; then checked=$fda_default; else checked=$(get $c); fi
+        if [ "$c" = folders ]; then
+            mark=
+            if service_installed; then mark="$(printf '%s' "$present" | grep -c . || true) registered"; fi
+        else
+            mark=$(installed_mark $c | sed 's/^ (//; s/)$//')
+        fi
+        printf 'component=%s\t%s\t%s\t%s\t%s\t%s\n' "$c" "$checked" "$a" "$(describe $c)" "$r" "$mark"
+    done
+    if model_installed; then printf 'model.installed=1\n'; fi
+    printf 'model.default_repo=%s\nmodel.download=%s\n' "$default_model_repo" "$(human_kb $size_model_download)"
+    printf 'model.repo=%s\nmodel.revision=%s\nmodel.from=%s\n' "$model_repo" "$model_revision" "$model_from"
+    printf '%s\n' "$present" | while IFS= read -r f; do [ -z "$f" ] || printf 'folder.registered=%s\n' "$f"; done
+    printf '%s' "$folders" | while IFS= read -r f; do [ -z "$f" ] || printf 'folder.given=%s\n' "$f"; done
+}
+
+read_tui_result() {
+    folders=
+    folders_chosen=1
+    while IFS= read -r line; do
+        k=${line%%=*}
+        v=${line#*=}
+        case "$k=$v" in
+            want.service=[01] | want.model=[01] | want.raycast=[01] | want.hotkey=[01] \
+                | want.folders=[01] | want.fda=[01]) set_want "${k#want.}" "$v" ;;
+            folder=?*) add_folder "$v" ;;
+            model.repo=*) model_repo=$v ;;
+            model.revision=?*) model_revision=$v ;;
+            model.from=*) model_from=$v ;;
+        esac
+    done <"$work/tui.out"
+}
+
+# The menu: returns once a plan is confirmed, exits when it is cancelled, and
+# fails when it cannot run.
+run_tui() {
+    [ "${HAIKU_RAG_TUI:-1}" != 0 ] || return 1
+    tui="$repo/scripts/install-macos-tui.py"
+    [ -f "$tui" ] || return 1
+    if [ "$has_uv" = 0 ]; then
+        note "(uv is not installed yet, so a numbered menu asks)"
+        return 1
+    fi
+    workdir
+    tui_spec >"$work/tui.in"
+    rm -f "$work/tui.out"
+    # The terminal's own device: macOS cannot poll /dev/tty, which the menu needs.
+    term=/dev/$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ')
+    [ -c "$term" ] || term=/dev/tty
+    note "Opening the menu..."
+    uv run --quiet --no-config --script "$tui" "$work/tui.in" "$work/tui.out" \
+        <"$term" >"$term" 2>"$work/tui.log" || true
+    case "$(sed -n 's/^action=//p' "$work/tui.out" 2>/dev/null)" in
+        install) read_tui_result; return 0 ;;
+        cancel) say "Cancelled: nothing changed."; exit 0 ;;
+    esac
+    warn "the menu did not start ($(tail -n 1 "$work/tui.log" 2>/dev/null)); a numbered menu asks instead"
+    return 1
+}
+
 choose() {
+    if [ "$interactive" = 1 ] && run_tui; then return 0; fi
     show_menu
     [ "$interactive" = 1 ] || return 0
     while ! ask "Install the checked components?" y; do
@@ -519,7 +595,7 @@ expand_path() {
 }
 
 ask_folders() {
-    [ "$interactive" = 1 ] || return 0
+    [ "$interactive" = 1 ] && [ "$folders_chosen" = 0 ] || return 0
     heading "Folders to index"
     present=$(registered_folders)
     if [ -n "$present" ]; then
@@ -625,7 +701,14 @@ full_disk_access() {
     note "  3. Turn its switch on (if it is listed already: off, then on again)"
     note "  4. $service_sh restart"
     [ "$interactive" = 1 ] || return 0
-    if ask "Open that System Settings pane, and the launcher in Finder, now?" "$1"; then
+    if [ -n "$want_fda" ]; then
+        open_fda=$want_fda
+    elif ask "Open that System Settings pane, and the launcher in Finder, now?" "$1"; then
+        open_fda=1
+    else
+        open_fda=0
+    fi
+    if [ "$open_fda" = 1 ]; then
         /usr/bin/open "$fda_pane" || true
         /usr/bin/open -R "$launcher" || true
         prompt "Press Return once the switch is on:" >/dev/null
@@ -670,7 +753,17 @@ install() {
     if [ "$dry_run" = 1 ]; then
         heading "Dry run: nothing changed"
         for c in $components; do note "$c: $(if [ "$(get $c)" = 1 ]; then printf install; else printf skip; fi)"; done
+        if [ "$want_model" = 1 ]; then
+            if [ -n "$model_from" ]; then
+                note "model from: $model_from"
+            elif model_installed && [ -z "$model_repo" ]; then
+                note "model from: the installed model, kept"
+            else
+                note "model from: $hf_endpoint/${model_repo:-$default_model_repo} ($model_revision)"
+            fi
+        fi
         printf '%s' "$folders" | while IFS= read -r f; do [ -z "$f" ] || note "folder: $f"; done
+        [ -z "$want_fda" ] || note "full disk access: $(if [ "$want_fda" = 1 ]; then printf 'open System Settings afterwards'; else printf skip; fi)"
         return 0
     fi
     if [ "$want_service" = 1 ] || [ "$want_model" = 1 ]; then

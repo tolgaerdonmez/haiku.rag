@@ -41,8 +41,14 @@ Run on its own, the installer clones the fork into
 runs the copy there; from a checkout, `scripts/install-macos.sh` installs that
 checkout. It checks the Mac (macOS 15 or later, Apple Silicon for the Neural
 Engine, the Xcode Command Line Tools, uv, which it offers to install, free disk,
-Raycast and Karabiner-Elements), lists the components with their sizes, and
-installs the ones you keep checked:
+Raycast and Karabiner-Elements), then opens a menu in the terminal: every
+component is a checkbox (arrows move, space checks or unchecks, Return
+continues), with the recommended ones checked and the unavailable ones greyed
+out with the reason. It then asks where the model comes from (Hugging Face,
+another repository, a folder on this Mac, or keeping the installed one) and
+which folders to index (the usual ones that exist, any other folder you type,
+Tab completing), shows the plan, and installs exactly what is checked, or goes
+back to change it, or cancels without changing anything:
 
 | Component | | Preselected |
 |---|---|---|
@@ -50,10 +56,17 @@ installs the ones you keep checked:
 | `model` | The Core ML embedding model from Hugging Face (about 850 MB installed, 420 MB download, each file checked against its SHA-256) | yes |
 | `raycast` | The Raycast extension: Search Documents, Manage Indexed Folders. Needs Node.js | when Raycast is installed |
 | `hotkey` | Cmd+Shift+F opens Search Documents, as a Karabiner-Elements rule. Other apps lose Cmd+Shift+F | no; offered when Karabiner is installed |
-| `folders` | Folders to index, asked one by one (`~/Documents` suggested), registered with the excludes `.*`, `*.json`, `*.yaml`, `*.yml` | yes |
+| `folders` | Folders to index (`~/Documents` suggested), registered with the excludes `.*`, `*.json`, `*.yaml`, `*.yml`. Needs the service | yes |
+| `fda` | Afterwards, open the Full Disk Access pane and the launcher in Finder | on a first install |
+
+The menu is `scripts/install-macos-tui.py`, a Python script uv runs with its
+pinned `questionary`. Without uv, when its packages cannot be fetched, or with
+`HAIKU_RAG_TUI=0`, a numbered menu asks instead, and the folders are asked
+after installing.
 
 Afterwards it shows the Full Disk Access step with the launcher's exact path
-and offers to open that System Settings pane, checks that the service answers,
+and opens that System Settings pane when `fda` is checked (the numbered menu
+asks), checks that the service answers,
 runs a test search when documents are indexed, and prints how to pause and
 uninstall. Running it again updates what changed and keeps the index, the
 folder list and an installed model.
@@ -61,8 +74,9 @@ folder list and an installed model.
 Options pick components without asking: `--service`, `--model`, `--raycast`,
 `--hotkey` and their `--no-` forms, `--folder PATH` (repeatable) and
 `--no-folders`. `--yes` asks nothing and installs the preselected set, without
-folders unless `--folder` names them; `--dry-run` checks the Mac and prints the
-plan. With the one-liner, pass them after `sh -s --`:
+folders unless `--folder` names them. `--dry-run` checks the Mac, shows the
+menu, and prints the plan without changing anything; with `--yes` or without a
+terminal it prints the recommended plan. With the one-liner, pass them after `sh -s --`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tolgaerdonmez/haiku.rag/main/scripts/install-macos.sh \
