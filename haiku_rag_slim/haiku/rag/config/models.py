@@ -759,6 +759,28 @@ class ThrottleConfig(ConfigModel):
     )
 
 
+class VacuumAfterIndexingConfig(ConfigModel):
+    """A vacuum the service runs once a large indexing run has finished."""
+
+    min_documents: int | None = Field(
+        default=50,
+        gt=0,
+        description="Vacuum a database once its queue has drained after at "
+        "least this many documents were indexed or removed since the last such "
+        "vacuum. None never does.",
+    )
+    quiet_s: float = Field(
+        default=60.0,
+        gt=0,
+        description="How long nothing may be queued or converting first.",
+    )
+    retention_seconds: int = Field(
+        default=0,
+        ge=0,
+        description="Versions older than this are removed, tagged ones kept.",
+    )
+
+
 class ServiceConfig(ConfigModel):
     """The local search service: `haiku-ingester serve` answering searches
     over its HTTP API, and how lightly it runs."""
@@ -779,6 +801,9 @@ class ServiceConfig(ConfigModel):
         "meanwhile are found by the sweep at that start. None never exits.",
     )
     throttle: ThrottleConfig = Field(default_factory=ThrottleConfig)
+    vacuum_after_indexing: VacuumAfterIndexingConfig = Field(
+        default_factory=VacuumAfterIndexingConfig
+    )
 
 
 class MetadataProviderConfig(ConfigModel):

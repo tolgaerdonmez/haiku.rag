@@ -786,6 +786,7 @@ class IngesterApp:
             watcher = self._watch_register()
             idle_exit = self._exit_when_idle(stop_event)
             release = asyncio.create_task(self._release_models_when_idle())
+            vacuum = self._vacuum_after_indexing()
             loop = asyncio.get_running_loop()
             handlers: dict[int, Callable[[], None]] = {
                 signal.SIGINT: stop_event.set,
@@ -818,7 +819,7 @@ class IngesterApp:
                     api_server.should_exit = True
                 if api_task is not None:
                     await asyncio.gather(api_task, return_exceptions=True)
-                for task in (watcher, idle_exit, release):
+                for task in (watcher, idle_exit, release, vacuum):
                     if task is not None:
                         task.cancel()
                         await asyncio.gather(task, return_exceptions=True)
@@ -1006,6 +1007,64 @@ class IngesterApp:
             for database in list(self._running.values()):
                 await database.client.store.embedder.release()
             released = True
+
+    def _vacuum_after_indexing(self) -> asyncio.Task | None:
+        """Vacuum each database whose queue drained after `min_documents`
+        documents were indexed or removed since its last such vacuum."""
+        settings = self._config.ingester.service.vacuum_after_indexing
+        threshold = settings.min_documents
+        if threshold is None:
+            return None
+
+        async def watch() -> None:
+            assert self._jobs is not None
+            started = datetime.now(UTC)
+            marks: dict[str, datetime] = {}
+            quiet_since: float | None = None
+            while True:
+                await asyncio.sleep(min(15.0, settings.quiet_s / 4))
+                counts = await self._jobs.counts_by_status()
+                if counts.get("queued", 0) + counts.get("claimed", 0):
+                    quiet_since = None
+                    continue
+                now = time.monotonic()
+                quiet_since = quiet_since if quiet_since is not None else now
+                if now - quiet_since < settings.quiet_s:
+                    continue
+                for name, database in list(self._running.items()):
+                    done = await self._jobs.counts_by_status_since(
+                        marks.get(name, started), source_ids=database.source_ids
+                    )
+                    if done.get("succeeded", 0) < threshold:
+                        continue
+                    if database.client.store.vacuuming:
+                        continue
+                    mark = datetime.now(UTC)
+                    if await self._vacuum(name, database, settings.retention_seconds):
+                        marks[name] = mark
+
+        return asyncio.create_task(watch())
+
+    async def _vacuum(self, name: str, database: _Database, retention: int) -> bool:
+        """Vacuum one database while no search runs. False when one did."""
+        started = time.monotonic()
+
+        async def work() -> None:
+            await database.client.vacuum(retention_seconds=retention)
+
+        search = self._api.search if self._api is not None else None
+        try:
+            if search is None:
+                await work()
+            elif not await search.while_idle(work):
+                return False
+        except Exception:
+            logger.exception("Vacuum of %s after indexing failed", name)
+            return True
+        logger.info(
+            "Vacuumed %s after indexing in %.1fs", name, time.monotonic() - started
+        )
+        return True
 
     def _exit_when_idle(self, stop: asyncio.Event) -> asyncio.Task | None:
         """Set `stop` once `idle_exit_s` passed with no request and no work."""

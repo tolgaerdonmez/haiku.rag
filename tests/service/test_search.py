@@ -292,6 +292,26 @@ async def test_a_running_search_keeps_the_client_open(seeded):
     await service.aclose()
 
 
+async def test_work_while_idle_waits_for_no_search(seeded):
+    config, _ = seeded
+    service = SearchService(config)
+    ran = []
+
+    async def work():
+        assert not service.loaded
+        ran.append(1)
+
+    async with service.client():
+        assert not await service.while_idle(work)
+    assert ran == []
+    assert service.loaded
+    assert await service.while_idle(work)
+    assert ran == [1]
+    await service.search("travis", limit=1, search_type="fts")
+    assert service.loaded
+    await service.aclose()
+
+
 async def test_a_new_configuration_applies_once_searches_end(tmp_path, seeded):
     config, _ = seeded
     service = SearchService(config)

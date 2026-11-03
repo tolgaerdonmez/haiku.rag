@@ -311,7 +311,13 @@ ingester:
       on_battery: slow        # run | slow | pause
       max_load: 0.7           # pause conversions above this load per core
       min_free_memory_percent: 10
+    vacuum_after_indexing:
+      min_documents: 50       # vacuum once the queue drains after this many; null never
+      quiet_s: 60             # how long the queue must stay empty first
+      retention_seconds: 0    # keep no old versions
 ```
+
+While that vacuum runs, searches wait for it.
 
 Pages and boxes come from what each chunk recorded when it was indexed. A
 database indexed before chunks recorded them still answers with boxes, read

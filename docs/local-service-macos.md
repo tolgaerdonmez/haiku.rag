@@ -135,6 +135,14 @@ none exists. `--no-raycast` and `--no-karabiner` skip those steps.
   embedding model, is closed after `ingester.service.search_idle_s` without a
   search, and the ingesting databases release their embedding models after as
   long without work.
+- **Compact after indexing.** Once nothing has been queued or converting for
+  `ingester.service.vacuum_after_indexing.quiet_s` (60 s) after at least
+  `min_documents` (50) documents were indexed or removed, the service vacuums
+  that database with `retention_seconds` (0): old versions and the files only
+  they use are removed, which takes an index from gigabytes back to its live
+  size. It waits for running searches and holds new ones back meanwhile.
+  `min_documents: null` turns it off. The ordinary background vacuum after
+  writes, with `storage.vacuum_retention_seconds`, runs as before.
 - **Crashes** restart it (`KeepAlive` on an unsuccessful exit), at most every
   30 s.
 

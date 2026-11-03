@@ -49,3 +49,7 @@ ingester:
       on_battery: pause
       max_load: 1.2               # per core, sized for 8 conversion processes of 2 threads
       min_free_memory_percent: 10
+    vacuum_after_indexing:
+      min_documents: 50           # once the queue drains after this many documents; null never
+      quiet_s: 60
+      retention_seconds: 0        # drop every old version, so the index shrinks to its live size

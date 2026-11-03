@@ -3,7 +3,7 @@ import json
 import re
 import time
 from collections import OrderedDict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -288,6 +288,19 @@ class SearchService:
         self._docling.clear()
         if stack is not None:
             await stack.aclose()
+
+    async def while_idle(self, work: Callable[[], Awaitable[object]]) -> bool:
+        """Run `work` with searches held back, unless one is running.
+
+        The client is closed first, so the next search reads the databases
+        as `work` left them.
+        """
+        async with self._lock:
+            if self._active:
+                return False
+            await self._close()
+            await work()
+            return True
 
     async def aclose(self) -> None:
         if self._timer is not None:
