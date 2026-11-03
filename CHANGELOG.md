@@ -11,11 +11,13 @@
 - Chunks record their boxes per page (`metadata.locations`), and MCP search results name their file `Path` and `Pages`.
 - `ingester.service`: the search client closes when idle, a throttle holds conversions back on battery, under load and in low memory, and `idle_exit_s` ends an idle service. `HAIKU_RAG_LISTEN_FD` serves the API on an inherited socket.
 - `service/macos/`: a launchd agent, socket-activated, and the launcher that holds its Full Disk Access grant.
+- `scripts/macos-service.sh`: installs the service from a checkout (`install`, `status`, `restart`, `pause`, `resume`, `logs`, `cli`, `uninstall`), with the Raycast extension and its Cmd+Shift+F Karabiner rule. `service/macos/build.sh` renders every installed file, the configuration `service/macos/haiku.rag.yaml` included.
 
 ### Changed
 
 - The `docling` extra installs `ocrmac` (macOS) and `onnxruntime`, the runtimes of Apple Vision OCR and RapidOCR.
 - `ingester.databases` entries may hold only `retired_sources` while their documents are deleted.
+- `examples/coreml/convert_jina_nano.py` converts sequence lengths up to 2048 by default, and the service configuration chunks at 1024 tokens.
 
 ## [0.106.0] - 2026-11-03
 

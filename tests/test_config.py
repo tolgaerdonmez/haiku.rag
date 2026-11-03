@@ -765,6 +765,16 @@ def test_example_config_validates(path: Path, monkeypatch):
     AppConfig.model_validate(load_yaml_config(path))
 
 
+def test_macos_service_config_validates(tmp_path, monkeypatch):
+    """The configuration scripts/macos-service.sh installs loads as-is."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = Path(__file__).resolve().parent.parent / "service/macos/haiku.rag.yaml"
+    config = AppConfig.model_validate(load_yaml_config(path))
+    app_dir = tmp_path / "Library/Application Support/haiku.rag"
+    assert config.ingester.folders_register == app_dir / "folders.yaml"
+    assert config.lancedb.databases["files"] == str(app_dir / "files.lancedb")
+
+
 def _use_config(monkeypatch, cfg):
     """Install cfg as the global config, restored by monkeypatch teardown."""
     import haiku.rag.config as config_module

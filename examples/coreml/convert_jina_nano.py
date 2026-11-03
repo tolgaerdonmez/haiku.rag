@@ -2,7 +2,7 @@
 
 Writes a model directory the provider reads:
 
-    <out>/model.mlpackage   one function per sequence length (L64, L128, ...)
+    <out>/model.mlpackage   one function per sequence length (L64 ... L2048)
     <out>/tokenizer.json
 
 Every function takes `input_ids` and `attention_mask` (int32, shape [1, L]) and
@@ -115,7 +115,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("model", help="Hugging Face id or local directory")
     parser.add_argument("out", type=Path, help="Output model directory")
-    parser.add_argument("--lengths", type=int, nargs="+", default=[64, 128, 256, 512])
+    parser.add_argument(
+        "--lengths", type=int, nargs="+", default=[64, 128, 256, 512, 1024, 2048]
+    )
     args = parser.parse_args()
 
     st = SentenceTransformer(

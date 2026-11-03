@@ -1,5 +1,6 @@
-# The local search service's configuration. Paths use ${HOME}; adjust the
-# embedding model to the one the index is built with; the coreml model directory
+# The local search service's configuration, installed as-is to
+# ~/Library/Application Support/haiku.rag/haiku.rag.yaml. Paths use ${HOME} and
+# are absolute, so the file also works as a symlink. The coreml model directory
 # holds model.mlpackage and tokenizer.json (examples/coreml converts it).
 environment: production
 storage:
@@ -16,7 +17,7 @@ embeddings:
     query_prefix: "Query: "
     document_prefix: "Document: "
 processing:
-  chunk_size: 256
+  chunk_size: 1024                # the model's longest function is 2048 tokens
   pictures: none
   conversion_options:
     ocr_engine: ocrmac            # Apple Vision; RapidOCR is the retry
@@ -24,24 +25,26 @@ processing:
     generate_page_images: false
   supervisor:
     enabled: true
-    # workers: 3                  # default: a quarter of the cores, at most 3
+    workers: 8                    # sized for the first full index; ~2-3 GB each
+    threads_per_worker: 2
+    background: false             # performance cores; Nice 10 and the throttle spare the machine
     unit_timeout: 300
     page_batch: 20
     retry_ocr_engine: rapidocr
 ingester:
-  folders_register: folders.yaml  # beside this file
+  folders_register: ${HOME}/Library/Application Support/haiku.rag/folders.yaml
   queue:
     path: ${HOME}/Library/Application Support/haiku.rag/ingester.db
   workers:
-    worker_count: 3
+    worker_count: 8               # one per conversion process
     poll_idle_interval_s: 5
   api:
     host: 127.0.0.1
-    port: 8765
+    port: 8765                    # the agent's socket in com.haiku-rag.service.plist.in
   service:
     search_idle_s: 300            # unload the search client after 5 idle minutes
     idle_exit_s: 1800             # exit after 30 idle minutes; launchd restarts on demand
     throttle:
-      on_battery: slow
-      max_load: 0.7
+      on_battery: pause
+      max_load: 1.2               # per core, sized for 8 conversion processes of 2 threads
       min_free_memory_percent: 10

@@ -9,10 +9,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>@LAUNCHER@</string>
-        <string>@INGESTER@</string>
-        <string>--config</string>
-        <string>@CONFIG@</string>
-        <string>serve</string>
+        <string>@SERVE@</string>
     </array>
 
     <!-- launchd listens on the port and starts the service on the first
@@ -44,8 +41,10 @@
     <key>ThrottleInterval</key>
     <integer>30</integer>
 
+    <!-- Background holds the whole process tree to the efficiency cores;
+         Nice 10, low-priority I/O and the throttle keep Standard light. -->
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Standard</string>
     <key>LowPriorityIO</key>
     <true/>
     <key>LowPriorityBackgroundIO</key>
@@ -57,6 +56,8 @@
     <dict>
         <key>PATH</key>
         <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
         <key>HAIKU_RAG_CONFIG_PATH</key>
         <string>@CONFIG@</string>
     </dict>
