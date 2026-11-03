@@ -1,9 +1,9 @@
 import { Clipboard, environment, open } from "@raycast/api";
 import { runAppleScript } from "@raycast/utils";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { createHash } from "crypto";
 import { existsSync } from "fs";
-import { mkdir, readFile, readdir, stat } from "fs/promises";
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import { homedir } from "os";
 import { basename, dirname, join } from "path";
 import { promisify } from "util";
@@ -11,7 +11,7 @@ import { locateLine } from "../text";
 import { SearchHit } from "../types";
 import { pickSectionFile, rootFile, spineOrder } from "./epub";
 import { powerPointScript, wordScript } from "./office";
-import { OpenPlan, findText, htmlFragmentUrl, planOpen } from "./plan";
+import { OpenPlan, findText, htmlFragmentUrl, planOpen, redirectPage } from "./plan";
 import { RexClientRow, RexSessionRow, findAppClient, findSession, newSessionArgs, newTabArgs } from "./rex";
 import { parseBounds, pageBoundsScript, revealScript, skimTarget } from "./skim";
 
@@ -96,31 +96,20 @@ async function openInRex(plan: Extract<OpenPlan, { kind: "editor" }>, settings: 
   return `Opened ${basename(plan.path)} at line ${line} in Rex`;
 }
 
-async function defaultBrowser(): Promise<string | undefined> {
-  try {
-    const plist = join(homedir(), "Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist");
-    const handlers = await json<{ LSHandlerURLScheme?: string; LSHandlerRoleAll?: string }[]>("/usr/bin/plutil", [
-      "-extract",
-      "LSHandlers",
-      "json",
-      "-o",
-      "-",
-      plist,
-    ]);
-    return handlers.find((h) => h.LSHandlerURLScheme === "https")?.LSHandlerRoleAll;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Opens a file URL keeping its fragment: handing the URL to the browser itself preserves it. */
+/**
+ * Opens a file URL with its fragment in the default browser. Launch Services drops the fragment of
+ * a file URL, so the browser first loads a local page that replaces itself with the URL.
+ */
 async function openUrlInBrowser(url: string): Promise<void> {
-  const browser = await defaultBrowser();
-  if (browser) {
-    await run("/usr/bin/open", ["-b", browser, url]);
-  } else {
+  if (!url.includes("#")) {
     await open(url);
+    return;
   }
+  const dir = join(environment.supportPath, "redirect");
+  await mkdir(dir, { recursive: true });
+  const page = join(dir, `${createHash("sha1").update(url).digest("hex").slice(0, 16)}.html`);
+  await writeFile(page, redirectPage(url), "utf8");
+  await open(page);
 }
 
 async function extractEpub(path: string): Promise<string> {
@@ -149,6 +138,14 @@ async function epubContentFiles(dir: string): Promise<string[]> {
   return entries.filter((e) => /\.x?html?$/i.test(e)).map((e) => join(dir, e));
 }
 
+/** An HTML-typed copy beside an XHTML file: browsers apply text fragments to HTML documents only. */
+async function asHtml(file: string): Promise<string> {
+  if (/\.html?$/i.test(file)) return file;
+  const copy = file.replace(/\.[^./]+$/, "") + ".haiku.html";
+  if (!existsSync(copy)) await copyFile(file, copy);
+  return copy;
+}
+
 async function openEpubSection(plan: Extract<OpenPlan, { kind: "epub" }>): Promise<OpenOutcome> {
   const dir = await extractEpub(plan.path);
   const files = await epubContentFiles(dir);
@@ -157,7 +154,7 @@ async function openEpubSection(plan: Extract<OpenPlan, { kind: "epub" }>): Promi
   );
   const section = pickSectionFile(contents, plan.heading, plan.passage);
   if (!section) return openInBooks(plan.path, findText(plan.passage));
-  await openUrlInBrowser(htmlFragmentUrl(section, plan.heading, plan.passage));
+  await openUrlInBrowser(htmlFragmentUrl(await asHtml(section), plan.heading, plan.passage));
   return `Opened the section of ${basename(plan.path)}`;
 }
 
@@ -167,8 +164,28 @@ export async function openInBooks(path: string, passage: string): Promise<OpenOu
   return "Opened in Books; passage copied, press ⌘F and paste";
 }
 
+/** The application that opens the file by default, if any claims it. */
+async function defaultAppFor(path: string): Promise<string | undefined> {
+  const script = `ObjC.import("AppKit");
+function run(argv) {
+  const url = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.fileURLWithPath(argv[0]));
+  return url.isNil() ? "" : url.path.js;
+}`;
+  try {
+    const { stdout } = await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", script, path], { timeout: 10_000 });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function copyAndOpen(path: string, passage: string, app?: string): Promise<OpenOutcome> {
   await Clipboard.copy(passage);
+  if (!app && !(await defaultAppFor(path))) {
+    const child = spawn("/usr/bin/qlmanage", ["-p", path], { detached: true, stdio: "ignore" });
+    child.unref();
+    return `No app opens ${basename(path)}; showing it in Quick Look, passage copied`;
+  }
   await open(path, app);
   return `Opened ${basename(path)}; passage copied, press ⌘F and paste`;
 }

@@ -13,6 +13,28 @@ It talks to the local search service (`haiku-ingester serve`, contract in
   include and exclude globs, stop watching it or remove it from the index,
   and see and retry files that failed to ingest.
 
+## Hotkey: Cmd+Shift+F
+
+Raycast keeps command hotkeys only in its own settings store. An extension's
+manifest cannot declare one and Raycast has no configuration file for them,
+so a hotkey can be set in two ways:
+
+- **Declaratively, through Karabiner-Elements.**
+  [`hotkey/karabiner-haiku-search.json`](hotkey/karabiner-haiku-search.json)
+  is a complex-modification rule mapping ⌘⇧F to
+  `open 'raycast://extensions/tolgaerdonmez/haiku-rag/search-documents'`.
+  Add it to Karabiner's `assets/complex_modifications` and enable it (a
+  configuration manager can merge it into the selected profile's
+  `complex_modifications.rules`). The first time Raycast receives the link
+  from outside it may ask to confirm opening the command.
+- **Once, in Raycast's settings.** Raycast Settings → Extensions → Haiku RAG →
+  Search Documents → Record Hotkey, then press ⌘⇧F. Raycast's settings
+  export (Settings → Advanced → Export) carries the hotkey to another Mac.
+
+Either way ⌘⇧F becomes global: other apps no longer receive it, for example
+Find in Files in VS Code or Recents in Finder. Inside the extension, Show in
+Finder is ⌘⇧R for the same reason.
+
 ## Opening a result
 
 Enter opens the result where the passage is:
@@ -34,7 +56,7 @@ created on first use, and Rex is brought forward on that tab.
 
 | Action | Shortcut |
 |---|---|
-| Show in Finder | ⌘⇧F |
+| Show in Finder | ⌘⇧R |
 | Search in This Document | ⌘F |
 | Quick Look Page (the PDF page with the passage outlined) | ⌘Y |
 | Copy Citation (file, page, heading trail, path) | ⌘⇧C |

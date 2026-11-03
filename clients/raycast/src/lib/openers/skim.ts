@@ -40,6 +40,18 @@ export function skimTarget(boxes: BoundingBox[], page: PageBounds): SkimTarget {
   return { rects, marquee: union && padRect(union, 2, page) };
 }
 
+/** Brings the document's tab to the front: opening an already open PDF leaves its tab where it was. */
+function raiseTab(pathLiteral: string): string {
+  return `  repeat with w in windows
+    try
+      if POSIX path of (file of document of w as alias) is ${pathLiteral} then
+        set index of w to 1
+        exit repeat
+      end if
+    end try
+  end repeat`;
+}
+
 /**
  * Goes to the page and shows the passage without writing to the PDF: a text selection when the
  * boxes cover selectable text, otherwise a selection-tool marquee (scanned pages, pictures).
@@ -51,6 +63,7 @@ export function revealScript(path: string, page: number, target: SkimTarget, pre
     return `tell application "Skim"
   activate
   set d to open POSIX file ${pathLiteral}
+${raiseTab(pathLiteral)}
   go d to page ${page} of d
   return "page"
 end tell`;
@@ -63,6 +76,7 @@ end tell`;
   return `tell application "Skim"
   activate
   set d to open POSIX file ${pathLiteral}
+${raiseTab(pathLiteral)}
   set p to page ${page} of d
   set useBox to ${preferBox ? "true" : "false"}
   if not useBox then

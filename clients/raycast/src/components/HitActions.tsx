@@ -48,7 +48,7 @@ export function HitActions({ hit, scoped, extra }: { hit: SearchHit; scoped?: bo
     <ActionPanel>
       <ActionPanel.Section>
         <Action title="Open at Passage" icon={Icon.ArrowRight} onAction={() => openAtPassage(hit)} />
-        <Action.ShowInFinder path={hit.path} shortcut={{ modifiers: ["cmd", "shift"], key: "f" }} />
+        <Action.ShowInFinder path={hit.path} shortcut={{ modifiers: ["cmd", "shift"], key: "r" }} />
         {scoped ? null : (
           <Action.Push
             title="Search in This Document"

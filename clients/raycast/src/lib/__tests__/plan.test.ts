@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fileKind } from "../doctype";
-import { findText, htmlFragmentUrl, planOpen } from "../openers/plan";
+import { findText, htmlFragmentUrl, planOpen, redirectPage } from "../openers/plan";
 import { SearchHit } from "../types";
 
 const ALL_APPS = { hasApp: () => true };
@@ -149,5 +149,13 @@ describe("findText and htmlFragmentUrl", () => {
 
   it("leaves the URL bare without text", () => {
     expect(htmlFragmentUrl("/p/a.html", undefined, "")).toBe("file:///p/a.html");
+  });
+});
+
+describe("redirectPage", () => {
+  it("replaces itself with the URL, which cannot close the script", () => {
+    const page = redirectPage("file:///a.html#:~:text=</script><b>");
+    expect(page).toContain('location.replace("file:///a.html#:~:text=\\u003c/script>\\u003cb>")');
+    expect(page.match(/<\/script>/g)).toHaveLength(1);
   });
 });

@@ -49,6 +49,12 @@ export function htmlFragmentUrl(path: string, heading: string | undefined, passa
   return directives.length > 0 ? `${base}#:~:${directives.join("&")}` : base;
 }
 
+/** A page that replaces itself with `url`, so the fragment survives being opened as a file. */
+export function redirectPage(url: string): string {
+  const literal = JSON.stringify(url).replace(/</g, "\\u003c");
+  return `<!doctype html><meta charset="utf-8"><title>Opening…</title><script>location.replace(${literal});</script>\n`;
+}
+
 /** Decides how to open a hit at its exact spot; executing the plan is the caller's job. */
 export function planOpen(hit: SearchHit, env: OpenEnvironment): OpenPlan {
   const passage = findText(passageOf(hit));
