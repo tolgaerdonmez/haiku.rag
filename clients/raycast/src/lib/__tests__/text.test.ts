@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCitation, groupByDocument, pageLabel } from "../citation";
+import { PASSAGES_PER_FILE, formatCitation, groupByDocument, pageLabel, topPassages } from "../citation";
 import { parsePatterns } from "../patterns";
 import {
   emphasiseMarkdown,
@@ -132,6 +132,35 @@ describe("citations and grouping", () => {
       hit({ id: "4", documentId: "a", database: "other" }),
     ]);
     expect(groups.map((g) => g.hits.map((h) => h.id))).toEqual([["1", "3"], ["2"], ["4"]]);
+  });
+
+  it("shows each file's best three passages and counts the rest", () => {
+    const hits = ["1", "2", "3", "4", "5"].map((id) => hit({ id, documentId: "a" }));
+    const [a, b] = topPassages(groupByDocument([...hits, hit({ id: "6", documentId: "b" })]));
+    expect(PASSAGES_PER_FILE).toBe(3);
+    expect(a.shown.map((h) => h.id)).toEqual(["1", "2", "3"]);
+    expect(a.more).toBe(2);
+    expect(a.group.hits).toHaveLength(5);
+    expect(b.shown.map((h) => h.id)).toEqual(["6"]);
+    expect(b.more).toBe(0);
+  });
+
+  it("shows every passage of a file when uncapped", () => {
+    const hits = ["1", "2", "3", "4"].map((id) => hit({ id }));
+    const [only] = topPassages(groupByDocument(hits), Number.POSITIVE_INFINITY);
+    expect(only.shown).toHaveLength(4);
+    expect(only.more).toBe(0);
+  });
+
+  it("ranks files by their best passage", () => {
+    const groups = groupByDocument([
+      hit({ id: "1", documentId: "a", score: 0.9 }),
+      hit({ id: "2", documentId: "b", score: 0.8 }),
+      hit({ id: "3", documentId: "b", score: 0.7 }),
+      hit({ id: "4", documentId: "b", score: 0.6 }),
+      hit({ id: "5", documentId: "c", score: 0.5 }),
+    ]);
+    expect(groups.map((g) => g.hits[0].documentId)).toEqual(["a", "b", "c"]);
   });
 
   it("parses folder patterns", () => {

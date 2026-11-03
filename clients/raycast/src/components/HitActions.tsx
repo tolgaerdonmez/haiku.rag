@@ -46,11 +46,14 @@ export function HitActions({
   hit,
   query = "",
   scoped,
+  drillIn,
   extra,
 }: {
   hit: SearchHit;
   query?: string;
   scoped?: boolean;
+  /** The view of every passage in the hit's file. */
+  drillIn?: ReactNode;
   extra?: ReactNode;
 }) {
   const kind = fileKind(hit.path, hit.documentType);
@@ -58,6 +61,14 @@ export function HitActions({
     <ActionPanel>
       <ActionPanel.Section>
         <Action title="Open at Passage" icon={Icon.ArrowRight} onAction={() => openAtPassage(hit, query)} />
+        {drillIn ? (
+          <Action.Push
+            title="Show All in This File"
+            icon={Icon.ChevronRight}
+            shortcut={{ modifiers: ["cmd"], key: "arrowRight" }}
+            target={drillIn}
+          />
+        ) : null}
         <Action.ShowInFinder path={hit.path} shortcut={{ modifiers: ["cmd", "shift"], key: "r" }} />
         {scoped ? null : (
           <Action.Push

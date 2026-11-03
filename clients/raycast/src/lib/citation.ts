@@ -28,6 +28,23 @@ export function formatCitation(hit: SearchHit): string {
   return `${parts.join(", ")}\n${hit.path}`;
 }
 
+export const PASSAGES_PER_FILE = 3;
+
+/** A document's group cut to its best `perFile` passages, and how many more it has. */
+export interface ShownGroup {
+  group: DocumentGroup;
+  shown: SearchHit[];
+  more: number;
+}
+
+export function topPassages(groups: DocumentGroup[], perFile = PASSAGES_PER_FILE): ShownGroup[] {
+  return groups.map((group) => ({
+    group,
+    shown: group.hits.slice(0, perFile),
+    more: Math.max(0, group.hits.length - perFile),
+  }));
+}
+
 /** Groups hits by document, keeping the service's ranking: a group sits where its best hit ranked. */
 export function groupByDocument(hits: SearchHit[]): DocumentGroup[] {
   const groups = new Map<string, DocumentGroup>();

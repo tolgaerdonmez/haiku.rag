@@ -1,12 +1,13 @@
-import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Icon, List, environment } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import { useMemo, useRef, useState } from "react";
-import { basename, dirname } from "path";
-import { headingTrail, groupByDocument, pageLabel } from "../lib/citation";
+import { basename, dirname, join } from "path";
+import { ShownGroup, headingTrail, groupByDocument, pageLabel, topPassages } from "../lib/citation";
 import { fileKind } from "../lib/doctype";
 import { preferences, resultLimit, searchService } from "../lib/preferences";
+import { renderPreview } from "../lib/preview/render";
 import { emphasiseMarkdown, emphasisePlain, snippetSpans } from "../lib/text";
-import { SearchHit } from "../lib/types";
+import { DocumentGroup, SearchHit } from "../lib/types";
 import { HitActions } from "./HitActions";
 
 export interface DocumentScope {
@@ -14,6 +15,11 @@ export interface DocumentScope {
   database?: string;
   title: string;
 }
+
+/** Every passage of a document the per-document search returns. */
+export const DOCUMENT_LIMIT = 50;
+/** Selections held shorter than this, while moving through the list, render nothing. */
+const PREVIEW_DELAY_MS = 120;
 
 const KIND_ICON: Record<string, Icon> = {
   pdf: Icon.Document,
@@ -57,11 +63,71 @@ function detailMarkdown(hit: SearchHit, query: string): string {
   return parts.join("\n\n");
 }
 
-function HitDetail({ hit, query }: { hit: SearchHit; query: string }) {
+interface Preview {
+  id: string;
+  markdown?: string;
+  withText?: boolean;
+}
+
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
+}
+
+/** The rendered preview of the selected hit only. */
+function useSelectedPreview(hit: SearchHit | undefined) {
+  const abortable = useRef<AbortController>(null);
+  const dir = useMemo(() => join(environment.supportPath, "previews", "pages"), []);
+  const { data, isLoading } = usePromise(
+    async (selected: SearchHit | undefined): Promise<Preview | undefined> => {
+      if (!selected) return undefined;
+      const signal = abortable.current?.signal;
+      await pause(PREVIEW_DELAY_MS, signal);
+      try {
+        return { id: selected.id, ...(await renderPreview(selected, dir, undefined, signal)) };
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        console.error(`No preview for ${selected.path}:`, error);
+        return { id: selected.id };
+      }
+    },
+    [hit],
+    { abortable, onError: () => undefined },
+  );
+  return { preview: data && data.id === hit?.id ? data : undefined, rendering: isLoading };
+}
+
+function HitDetail({
+  hit,
+  query,
+  preview,
+  rendering,
+}: {
+  hit: SearchHit;
+  query: string;
+  preview?: Preview;
+  rendering?: boolean;
+}) {
   const page = pageLabel(hit);
+  const text = detailMarkdown(hit, query);
+  const markdown = preview?.markdown
+    ? preview.withText
+      ? `${preview.markdown}\n\n---\n\n${text}`
+      : preview.markdown
+    : text;
   return (
     <List.Item.Detail
-      markdown={detailMarkdown(hit, query)}
+      isLoading={rendering && !preview}
+      markdown={markdown}
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title="File" text={basename(hit.path)} />
@@ -84,11 +150,26 @@ function HitDetail({ hit, query }: { hit: SearchHit; query: string }) {
   );
 }
 
-export function SearchView({ scope }: { scope?: DocumentScope }) {
+/** The passages a file's section does not show, for the "show all" row's detail. */
+function moreMarkdown(shown: ShownGroup, query: string): string {
+  const rest = shown.group.hits.slice(shown.shown.length).map((hit) => {
+    const where = [pageLabel(hit), hit.headings.at(-1)].filter(Boolean).join(" · ");
+    return `- ${where ? `**${where}** ` : ""}${rowTitle(hit, query)}`;
+  });
+  return [`### ${shown.more} more in ${shown.group.title}`, ...rest].join("\n\n");
+}
+
+function scopeOf(group: DocumentGroup): DocumentScope {
+  const hit = group.hits[0];
+  return { documentId: hit.documentId, database: hit.database, title: group.title };
+}
+
+export function SearchView({ scope, initialQuery = "" }: { scope?: DocumentScope; initialQuery?: string }) {
   const prefs = useMemo(() => preferences(), []);
   const service = useMemo(() => searchService(prefs), [prefs]);
-  const limit = resultLimit(prefs);
-  const [query, setQuery] = useState("");
+  const limit = scope ? DOCUMENT_LIMIT : resultLimit(prefs);
+  const [query, setQuery] = useState(initialQuery);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showingDetail, setShowingDetail] = useState(true);
   const abortable = useRef<AbortController>(null);
 
@@ -106,14 +187,33 @@ export function SearchView({ scope }: { scope?: DocumentScope }) {
   );
 
   const groups = useMemo(() => groupByDocument(data?.hits ?? []), [data]);
+  const sections = useMemo(
+    () => (scope ? topPassages(groups, Number.POSITIVE_INFINITY) : topPassages(groups)),
+    [groups, scope],
+  );
+  const selected = useMemo(
+    () => (showingDetail ? data?.hits.find((h) => h.id === selectedId) : undefined),
+    [data, selectedId, showingDetail],
+  );
+  const { preview, rendering } = useSelectedPreview(selected);
   const hasHits = groups.length > 0;
+  const detailAction = (
+    <Action
+      title={showingDetail ? "Hide Details" : "Show Details"}
+      icon={Icon.Sidebar}
+      shortcut={{ modifiers: ["cmd"], key: "d" }}
+      onAction={() => setShowingDetail((v) => !v)}
+    />
+  );
 
   return (
     <List
       isLoading={isLoading}
       throttle
       filtering={false}
+      searchText={query}
       onSearchTextChange={setQuery}
+      onSelectionChange={setSelectedId}
       isShowingDetail={showingDetail && hasHits}
       navigationTitle={scope ? `Search in ${scope.title}` : undefined}
       searchBarPlaceholder={scope ? `Search inside ${scope.title}…` : "Search your files by meaning…"}
@@ -129,46 +229,64 @@ export function SearchView({ scope }: { scope?: DocumentScope }) {
       ) : !isLoading && !hasHits ? (
         <List.EmptyView icon={Icon.MagnifyingGlass} title="No matching passages" />
       ) : null}
-      {groups.map((group) => (
-        <List.Section
-          key={group.key}
-          title={group.title}
-          subtitle={`${tidyHome(dirname(group.path))} · ${group.hits.length} ${group.hits.length === 1 ? "passage" : "passages"}`}
-        >
-          {group.hits.map((hit) => {
-            const page = pageLabel(hit);
-            const heading = hit.headings.at(-1);
-            const title = rowTitle(hit, query);
-            return (
+      {sections.map((section) => {
+        const { group } = section;
+        const drillIn = <SearchView scope={scopeOf(group)} initialQuery={query} />;
+        const count = `${group.hits.length} ${group.hits.length === 1 ? "passage" : "passages"}`;
+        return (
+          <List.Section key={group.key} title={group.title} subtitle={`${tidyHome(dirname(group.path))} · ${count}`}>
+            {section.shown.map((hit) => {
+              const page = pageLabel(hit);
+              const heading = hit.headings.at(-1);
+              const title = rowTitle(hit, query);
+              const isSelected = hit.id === selected?.id;
+              return (
+                <List.Item
+                  key={hit.id}
+                  id={hit.id}
+                  icon={KIND_ICON[fileKind(hit.path, hit.documentType)]}
+                  title={showingDetail ? [page, heading, title].filter(Boolean).join(" · ") : title}
+                  subtitle={showingDetail ? undefined : heading}
+                  accessories={showingDetail ? undefined : page ? [{ tag: page }] : undefined}
+                  keywords={hit.headings}
+                  detail={
+                    <HitDetail
+                      hit={hit}
+                      query={query}
+                      preview={isSelected ? preview : undefined}
+                      rendering={isSelected && rendering}
+                    />
+                  }
+                  actions={
+                    <HitActions
+                      hit={hit}
+                      query={query}
+                      scoped={!!scope}
+                      drillIn={scope ? undefined : drillIn}
+                      extra={detailAction}
+                    />
+                  }
+                />
+              );
+            })}
+            {section.more > 0 ? (
               <List.Item
-                key={hit.id}
-                id={hit.id}
-                icon={KIND_ICON[fileKind(hit.path, hit.documentType)]}
-                title={showingDetail ? [page, heading, title].filter(Boolean).join(" · ") : title}
-                subtitle={showingDetail ? undefined : heading}
-                accessories={showingDetail ? undefined : page ? [{ tag: page }] : undefined}
-                keywords={hit.headings}
-                detail={<HitDetail hit={hit} query={query} />}
+                key={`more:${group.key}`}
+                id={`more:${group.key}`}
+                icon={Icon.ChevronRight}
+                title={`Show all ${count} in this file`}
+                detail={<List.Item.Detail markdown={moreMarkdown(section, query)} />}
                 actions={
-                  <HitActions
-                    hit={hit}
-                    query={query}
-                    scoped={!!scope}
-                    extra={
-                      <Action
-                        title={showingDetail ? "Hide Details" : "Show Details"}
-                        icon={Icon.Sidebar}
-                        shortcut={{ modifiers: ["cmd"], key: "d" }}
-                        onAction={() => setShowingDetail((v) => !v)}
-                      />
-                    }
-                  />
+                  <ActionPanel>
+                    <Action.Push title="Show All in This File" icon={Icon.ChevronRight} target={drillIn} />
+                    {detailAction}
+                  </ActionPanel>
                 }
               />
-            );
-          })}
-        </List.Section>
-      ))}
+            ) : null}
+          </List.Section>
+        );
+      })}
       {data && data.skipped > 0 ? (
         <List.Section title={`${data.skipped} more results are not local files`}>
           <List.Item

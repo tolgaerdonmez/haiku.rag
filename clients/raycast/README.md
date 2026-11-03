@@ -6,9 +6,23 @@ It talks to the local search service (`haiku-ingester serve`, contract in
 
 ## Commands
 
-- **Search Documents**: results as you type, grouped by document. Each row
+- **Search Documents**: results as you type, one section per file, files in
+  the order of their best passage. A section shows the file's three best
+  passages; **Show all N in this file** (or ⌘→ on any of them) opens every
+  passage of that file for the query, which you can refine there. Each row
   shows the page, the section heading and the snippet with the matched words
-  in bold; the detail pane (⌘D) shows the passage in its section.
+  in bold. The detail pane (⌘D) previews the selected passage:
+
+  | File | Preview |
+  |---|---|
+  | PDF, scanned PDF | The page rendered with PDFKit, the passage's boxes highlighted: first zoomed on the passage, then the whole page. |
+  | Markdown, text, code | The passage's lines in the file, numbered and marked, with three lines around them. |
+  | Word, PowerPoint, HTML, EPUB, other | Quick Look's thumbnail of the file, above the passage's text. |
+
+  Only the selected row is rendered. Images are cached in the extension's
+  support folder (`previews/pages`, at most 200 MB, least recently used
+  removed first) by file, modification time, page and boxes. A first render
+  takes about 0.1-0.3 s; when one fails the pane shows the passage's text.
 - **Manage Indexed Folders**: the folder register. Add a folder, edit its
   include and exclude patterns (gitignore-style), stop watching it or remove it from the index,
   and see and retry files that failed to ingest.
@@ -56,6 +70,7 @@ created on first use, and Rex is brought forward on that tab.
 
 | Action | Shortcut |
 |---|---|
+| Show All in This File | ⌘→ |
 | Show in Finder | ⌘⇧R |
 | Search in This Document | ⌘F |
 | Quick Look Page (the PDF page with the passage outlined) | ⌘Y |
@@ -79,7 +94,7 @@ backstop.
 | Search Service URL | `http://127.0.0.1:8765` |
 | Service Token | empty; set when `ingester.api.auth_token` is set |
 | Mock Data | off; on serves the sample files in `assets/samples` without a service |
-| Result Limit | 20 |
+| Result Limit | 50, the most the service returns; grouped by file |
 | Rex CLI | empty finds the CLI bundled with Rex |
 | Rex Session | `haiku` |
 | Editor | `nvim` |

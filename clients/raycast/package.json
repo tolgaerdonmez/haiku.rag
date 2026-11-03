@@ -54,10 +54,10 @@
     {
       "name": "resultLimit",
       "title": "Result Limit",
-      "description": "How many passages to fetch per query.",
+      "description": "How many passages to fetch per query, grouped by file (at most 50).",
       "type": "textfield",
       "required": false,
-      "default": "20"
+      "default": "50"
     },
     {
       "name": "rexPath",

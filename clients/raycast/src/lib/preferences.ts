@@ -52,7 +52,7 @@ export function searchService(prefs: Preferences = preferences()): SearchService
 
 export function resultLimit(prefs: Preferences = preferences()): number {
   const n = Number(prefs.resultLimit);
-  return Number.isInteger(n) && n > 0 ? Math.min(n, 50) : 20;
+  return Number.isInteger(n) && n > 0 ? Math.min(n, 50) : 50;
 }
 
 export function openerSettings(prefs: Preferences = preferences()): OpenerSettings {
