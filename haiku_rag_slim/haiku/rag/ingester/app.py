@@ -235,6 +235,7 @@ class IngesterApp:
             for source in sources
         ]
         self._configured_source_ids: set[str] = set()
+        self._retired = _retired_sources(config)
         self._running: dict[str, _Database] = {}
         self._ingested: dict[str, DatabaseRef] = {}
         self._source_databases: dict[str, str] = {}
@@ -501,6 +502,7 @@ class IngesterApp:
             and self._pollers is not None
             and self._sync is not None
         )
+        await self._purge_retired(database)
         await reconcile(database.client, self._sync, database.source_ids)
         self._pool.add_sources(
             clients={source_id: database.client for source_id in database.source_ids},
@@ -523,6 +525,32 @@ class IngesterApp:
         self._source_databases.update(
             {source_id: name for source_id in database.source_ids}
         )
+
+    async def _purge_retired(self, database: _Database) -> None:
+        """Delete the documents of `database`'s retired sources, and what the
+        queue knows of those sources."""
+        assert self._sync is not None
+        retired = set(self._retired.get(database.ref.name, ())) - set(
+            database.source_ids
+        )
+        if not retired:
+            return
+        doomed = [
+            (doc.id, owner)
+            for doc in await database.client.list_documents()
+            if (owner := (doc.metadata or {}).get("source_id")) in retired
+            and doc.id is not None
+        ]
+        for document_id, owner in doomed:
+            await database.client.delete_document(document_id, source_id=owner)
+        await self._sync.delete_sources(sorted(retired))
+        if doomed:
+            logger.info(
+                "Deleted %d document(s) of removed source(s) %s from %s",
+                len(doomed),
+                ", ".join(sorted(retired)),
+                database.ref.name,
+            )
 
     async def _close(
         self,
@@ -730,6 +758,7 @@ class IngesterApp:
             api_task, api_server = await self._maybe_start_api(api)
 
             stop_event = asyncio.Event()
+            watcher = self._watch_register()
             loop = asyncio.get_running_loop()
             handlers: dict[int, Callable[[], None]] = {
                 signal.SIGINT: stop_event.set,
@@ -762,6 +791,9 @@ class IngesterApp:
                     api_server.should_exit = True
                 if api_task is not None:
                     await asyncio.gather(api_task, return_exceptions=True)
+                if watcher is not None:
+                    watcher.cancel()
+                    await asyncio.gather(watcher, return_exceptions=True)
                 await self._pollers.stop()
                 await self._stop_pool()
                 await self._pollers.close_sources()
@@ -924,6 +956,25 @@ class IngesterApp:
                 await self._stop_pool()
                 await self._pollers.close_sources()
 
+    def _watch_register(self) -> asyncio.Task | None:
+        """Reload whenever the folder register file changes, until cancelled."""
+        register = self._config.ingester.folders_register
+        if register is None or self._config_path is None:
+            return None
+
+        async def watch() -> None:
+            from watchfiles import awatch
+
+            register.parent.mkdir(parents=True, exist_ok=True)
+            async for _ in awatch(
+                register.parent,
+                watch_filter=lambda _change, path: Path(path).name == register.name,
+                recursive=False,
+            ):
+                self._reload_on_signal()
+
+        return asyncio.create_task(watch())
+
     async def reload(self) -> ReloadReport:
         """Read the configuration file again and add, remove or replace the
         databases that changed. Reloads run one at a time, and a caller that
@@ -986,6 +1037,7 @@ class IngesterApp:
 
     async def _reload(self) -> ReloadReport:
         config, wanted = await self._read_configuration()
+        self._retired = _retired_sources(config)
         report = ReloadReport()
         if not await self._close_prepared(report):
             return report
@@ -1143,6 +1195,7 @@ class IngesterApp:
                 source_databases=self._source_databases,
                 claim_lock=self._pool.claim_lock,
                 reload=self.reload,
+                request_reload=self._reload_on_signal,
             )
         return self._api
 
@@ -1199,6 +1252,14 @@ def _ingested_databases(
     ]
     _refuse_shared_locations([ref for ref, _ in databases])
     return databases
+
+
+def _retired_sources(config: AppConfig) -> dict[str, list[str]]:
+    return {
+        name: entry.retired_sources
+        for name, entry in config.ingester.databases.items()
+        if entry.retired_sources
+    }
 
 
 def _refuse_duplicate_ids(ids: list[str]) -> None:

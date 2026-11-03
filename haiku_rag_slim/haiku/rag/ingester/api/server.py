@@ -26,7 +26,8 @@ class APIState:
     that failed to start, with their errors, and `source_databases` maps a
     served source id to the name of its database. A retry holds `claim_lock`, the
     pool's, so it cannot land between a removal's unserve and its delete.
-    `reload` is the running app's."""
+    `reload` is the running app's, and `request_reload` queues one without
+    waiting for it."""
 
     config: "AppConfig"
     job_repo: "JobRepo"
@@ -38,6 +39,7 @@ class APIState:
     source_databases: Mapping[str, str] = field(default_factory=dict)
     claim_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reload: "Callable[[], Awaitable[ReloadReport]] | None" = None
+    request_reload: "Callable[[], None] | None" = None
 
 
 def get_state(request: Request) -> APIState:
@@ -64,6 +66,7 @@ def build_app(
         dashboard,
         database,
         dlq,
+        folders,
         health,
         jobs,
         providers,
@@ -95,6 +98,7 @@ def build_app(
     app.include_router(database.router, dependencies=auth_dep)
     app.include_router(config_route.router, dependencies=auth_dep)
     app.include_router(reload.router, dependencies=auth_dep)
+    app.include_router(folders.router, dependencies=auth_dep)
     # The dashboards poll these every few seconds.
     polled = "|".join(("health", "sources", "providers", "stats", "jobs"))
     logfire.instrument_fastapi(

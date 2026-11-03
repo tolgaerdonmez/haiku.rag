@@ -199,9 +199,10 @@ Folder object:
 }
 ```
 
-`include` and `exclude` are glob patterns matched against the path relative to
-the folder (`**` crosses directories). An empty `include` takes every supported
-file. `status` is null when the service is not running that folder yet.
+`include` and `exclude` are gitignore-style patterns matched against each file's
+absolute path, so `*.pdf` and `drafts/` match at any depth. An empty `include`
+takes every supported file. `status` is null when the service is not running
+that folder yet (just after it was added, or while it is being re-added).
 
 ### `GET /folders`
 

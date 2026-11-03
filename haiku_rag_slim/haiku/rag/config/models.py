@@ -840,9 +840,21 @@ SourceConfig = Annotated[
 
 
 class IngestedDatabase(ConfigModel):
-    """The sources one database is ingested from."""
+    """The sources one database is ingested from.
 
-    sources: list[SourceConfig] = Field(min_length=1)
+    `retired_sources` are ids of sources that were removed: the documents they
+    ingested are deleted when the database starts. A database may have no
+    sources while it has retired ones.
+    """
+
+    sources: list[SourceConfig] = Field(default_factory=list)
+    retired_sources: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _ingests_or_retires(self) -> "IngestedDatabase":
+        if not self.sources and not self.retired_sources:
+            raise ValueError("an ingested database needs at least one source")
+        return self
 
 
 class IngesterConfig(ConfigModel):
@@ -853,6 +865,14 @@ class IngesterConfig(ConfigModel):
     """
 
     databases: dict[str, IngestedDatabase] = Field(default_factory=dict)
+    folders_register: Path | None = Field(
+        default=None,
+        description="YAML file of the folders to index, managed with "
+        "`haiku-rag folders`, the API and MCP. Each folder is added to its "
+        "database's sources at load, and `serve` applies changes to the file "
+        "as they happen. A relative path is read from the config file's "
+        "directory.",
+    )
     queue: QueueConfig = Field(default_factory=QueueConfig)
     workers: WorkerConfig = Field(default_factory=WorkerConfig)
     api: APIConfig = Field(default_factory=APIConfig)
