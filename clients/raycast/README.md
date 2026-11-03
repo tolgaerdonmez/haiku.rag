@@ -8,16 +8,17 @@ It talks to the local search service (`haiku-ingester serve`, contract in
 
 - **Search Documents**: results as you type, one section per file, files in
   the order of their best passage. A section shows the file's three best
-  passages; **Show all N in this file** (or ⌘→ on any of them) opens every
+  passages; **Show all N in this file** (or ⌘↵ on any of them) opens every
   passage of that file for the query, which you can refine there. Each row
   shows the page, the section heading and the snippet with the matched words
-  in bold. The detail pane (⌘D) previews the selected passage:
+  in bold. The detail pane (⌘D) previews the selected passage under one
+  heading line, the document's name and the page:
 
   | File | Preview |
   |---|---|
   | PDF, scanned PDF | The page rendered with PDFKit, the passage's boxes highlighted: first zoomed on the passage, then the whole page. |
   | Markdown, text, code | The passage's lines in the file, numbered and marked, with three lines around them. |
-  | Word, PowerPoint, HTML, EPUB, other | Quick Look's thumbnail of the file, above the passage's text. |
+  | Word, PowerPoint, HTML, EPUB, other | Quick Look's thumbnail of the file. |
 
   Only the selected row is rendered. Images are cached in the extension's
   support folder (`previews/pages`, at most 200 MB, least recently used
@@ -70,7 +71,7 @@ created on first use, and Rex is brought forward on that tab.
 
 | Action | Shortcut |
 |---|---|
-| Show All in This File | ⌘→ |
+| Show All in This File | ⌘↵ |
 | Show in Finder | ⌘⇧R |
 | Search in This Document | ⌘F |
 | Quick Look Page (the PDF page with the passage outlined) | ⌘Y |

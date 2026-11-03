@@ -22,8 +22,8 @@ export const PAGE_WIDTH_PX = 600;
 const MARGIN_X = 0.04;
 const MARGIN_Y = 0.025;
 const MIN_ZOOM_WIDTH = 0.6;
-/** The zoom is at least this tall for its width, in page points. */
-const MIN_ASPECT = 0.55;
+/** The zoom's height for its width, in page points: what Raycast's detail pane shows unscrolled. */
+const ZOOM_ASPECT = 0.75;
 /** A zoom covering this much of the page makes the page itself enough. */
 const WHOLE_PAGE_AREA = 0.8;
 
@@ -54,7 +54,8 @@ function atLeast(from: number, to: number, size: number): [number, number] {
 
 /**
  * The region worth reading around the highlights: their column, padded, at
- * least `MIN_ZOOM_WIDTH` of the page wide and `MIN_ASPECT` as tall as wide.
+ * least `MIN_ZOOM_WIDTH` of the page wide and `ZOOM_ASPECT` as tall as wide.
+ * Highlights taller than that are shown from the passage's start.
  */
 export function zoomCrop(highlights: Fraction[], pageWidth: number, pageHeight: number): Fraction {
   const [l, t, r, b] = highlights.reduce((u, f) => [
@@ -64,8 +65,11 @@ export function zoomCrop(highlights: Fraction[], pageWidth: number, pageHeight: 
     Math.max(u[3], f[3]),
   ]);
   const [x0, x1] = atLeast(clamp(l - MARGIN_X), clamp(r + MARGIN_X), MIN_ZOOM_WIDTH);
-  const minHeight = Math.min(1, ((x1 - x0) * pageWidth * MIN_ASPECT) / pageHeight);
-  const [y0, y1] = atLeast(clamp(t - MARGIN_Y), clamp(b + MARGIN_Y), minHeight);
+  const height = Math.min(1, ((x1 - x0) * pageWidth * ZOOM_ASPECT) / pageHeight);
+  const top = clamp(t - MARGIN_Y);
+  const bottom = clamp(b + MARGIN_Y);
+  if (bottom - top > height) return [x0, top, x1, top + height];
+  const [y0, y1] = atLeast(top, bottom, height);
   return [x0, y0, x1, y1];
 }
 

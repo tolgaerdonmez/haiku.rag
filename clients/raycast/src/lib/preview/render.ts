@@ -153,18 +153,18 @@ export async function renderPreview(
   dir: string,
   exec: Exec = defaultExec,
   signal?: AbortSignal,
-): Promise<{ markdown: string; withText: boolean } | undefined> {
+): Promise<{ markdown: string } | undefined> {
   const kind = fileKind(hit.path, hit.documentType);
   if (kind === "text") {
     const markdown = await renderTextContext(hit);
-    return markdown ? { markdown, withText: false } : undefined;
+    return markdown ? { markdown } : undefined;
   }
   if (kind === "pdf") {
     const images = await renderPdfPage(hit, dir, exec, signal);
     if (!images) return undefined;
     const page = pageLayout(hit)?.page;
-    return { markdown: images.map((i) => imageMarkdown(i, `Page ${page}`)).join("\n\n"), withText: false };
+    return { markdown: images.map((i) => imageMarkdown(i, `Page ${page}`)).join("\n\n") };
   }
   const images = await renderThumbnail(hit, dir, exec, signal);
-  return images ? { markdown: imageMarkdown(images[0], basename(hit.path)), withText: true } : undefined;
+  return images ? { markdown: imageMarkdown(images[0], basename(hit.path)) } : undefined;
 }

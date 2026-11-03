@@ -82,6 +82,5 @@ export function textContextMarkdown(path: string, content: string, passage: stri
     })
     .join("\n");
   const f = fence(body);
-  const where = span.start === span.end ? `line ${span.start}` : `lines ${span.start}–${span.end}`;
-  return `**${where}**\n\n${f}${languageOf(path)}\n${body}\n${f}`;
+  return `${f}${languageOf(path)}\n${body}\n${f}`;
 }

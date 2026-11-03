@@ -84,7 +84,7 @@ describe("zoomCrop", () => {
   it("grows one line to a readable region around it", () => {
     const [x0, y0, x1, y1] = zoomCrop([[0.4, 0.5, 0.5, 0.52]], 600, 800);
     expect(x1 - x0).toBeCloseTo(0.6);
-    expect(((y1 - y0) * 800) / ((x1 - x0) * 600)).toBeCloseTo(0.55);
+    expect(((y1 - y0) * 800) / ((x1 - x0) * 600)).toBeCloseTo(0.75);
     expect(y0).toBeLessThan(0.5);
     expect(y1).toBeGreaterThan(0.52);
   });
@@ -97,13 +97,11 @@ describe("zoomCrop", () => {
     expect(y0).toBeGreaterThan(0);
   });
 
-  it("keeps a large passage whole", () => {
-    expect(zoomCrop([[0.1, 0.1, 0.9, 0.6]], 600, 800)).toEqual([
-      expect.closeTo(0.06),
-      expect.closeTo(0.075),
-      expect.closeTo(0.94),
-      expect.closeTo(0.625),
-    ]);
+  it("shows a tall passage from its start", () => {
+    const [x0, y0, x1, y1] = zoomCrop([[0.1, 0.1, 0.9, 0.9]], 600, 800);
+    expect([x0, x1]).toEqual([expect.closeTo(0.06), expect.closeTo(0.94)]);
+    expect(y0).toBeCloseTo(0.075);
+    expect(y1 - y0).toBeCloseTo((0.88 * 600 * 0.75) / 800);
   });
 });
 
@@ -120,8 +118,9 @@ describe("pageLayout", () => {
     expect(layout.page).toBe(2);
   });
 
-  it("shows the whole page when the passage fills it", () => {
-    const layout = pageLayout(hit({ boxes: [box({ left: 20, top: 20, right: 580, bottom: 820 })] }))!;
+  it("shows the whole page when the zoom would cover most of it", () => {
+    const slide = box({ left: 40, top: 40, right: 680, bottom: 300, pageWidth: 720, pageHeight: 405 });
+    const layout = pageLayout(hit({ boxes: [slide] }))!;
     expect(layout.outputs).toEqual([{ name: "page", crop: [0, 0, 1, 1], width: ZOOM_WIDTH_PX }]);
   });
 
@@ -146,7 +145,6 @@ describe("text context", () => {
       "line 8 words here\nline 9 words here\nline 10 words here",
       8,
     )!;
-    expect(md).toContain("**lines 8–10**");
     expect(md).toContain("```markdown");
     expect(md).toContain(" 5   line 5 words here");
     expect(md).toContain(" 8 ▌ line 8 words here");
@@ -216,7 +214,6 @@ describe("renderPreview", () => {
 
   it("shows a PDF hit as its zoomed and whole page", async () => {
     const preview = (await renderPreview(hit(), join(scratch(), "with space"), fakeExec([])))!;
-    expect(preview.withText).toBe(false);
     const images = [...preview.markdown.matchAll(/!\[Page 2\]\((file:\/\/[^)]+)\)/g)];
     expect(images).toHaveLength(2);
     expect(images[0][1]).toContain("with%20space");
@@ -232,7 +229,7 @@ describe("renderPreview", () => {
     expect(md?.markdown).toContain("```markdown");
   });
 
-  it("shows other files as a Quick Look thumbnail above the passage", async () => {
+  it("shows other files as a Quick Look thumbnail", async () => {
     const calls: string[][] = [];
     const preview = await renderPreview(
       hit({ path: join(SAMPLES, "page.html"), documentType: "html", boxes: [], pages: [] }),
@@ -240,7 +237,7 @@ describe("renderPreview", () => {
       fakeExec(calls),
     );
     expect(calls[0][0]).toBe("/usr/bin/qlmanage");
-    expect(preview).toEqual({ markdown: expect.stringMatching(/-thumbnail\.png\)$/), withText: true });
+    expect(preview).toEqual({ markdown: expect.stringMatching(/-thumbnail\.png\)$/) });
   });
 
   it("has no preview when Quick Look makes no thumbnail", async () => {

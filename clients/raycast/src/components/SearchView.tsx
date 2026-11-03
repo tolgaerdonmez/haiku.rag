@@ -2,11 +2,11 @@ import { Action, ActionPanel, Icon, List, environment } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import { useMemo, useRef, useState } from "react";
 import { basename, dirname, join } from "path";
-import { ShownGroup, headingTrail, groupByDocument, pageLabel, topPassages } from "../lib/citation";
+import { ShownGroup, documentName, groupByDocument, locationLabel, pageLabel, topPassages } from "../lib/citation";
 import { fileKind } from "../lib/doctype";
 import { preferences, resultLimit, searchService } from "../lib/preferences";
 import { renderPreview } from "../lib/preview/render";
-import { emphasiseMarkdown, emphasisePlain, snippetSpans } from "../lib/text";
+import { emphasiseMarkdown, emphasisePlain, escapeMarkdown, snippetSpans } from "../lib/text";
 import { DocumentGroup, SearchHit } from "../lib/types";
 import { HitActions } from "./HitActions";
 
@@ -47,26 +47,27 @@ function rowTitle(hit: SearchHit, query: string): string {
     .trim();
 }
 
-function detailMarkdown(hit: SearchHit, query: string): string {
-  const parts: string[] = [];
-  const trail = headingTrail(hit);
-  if (trail) parts.push(`### ${trail}`);
-  parts.push(
+/** The document's name with the passage's page beside it, as the pane's one heading line. */
+function header(hit: SearchHit): string {
+  const where = locationLabel(hit);
+  return `### ${escapeMarkdown(documentName(hit))}${where ? `  \`${where}\`` : ""}`;
+}
+
+/** The passage as text, for files without a rendered preview. */
+function textMarkdown(hit: SearchHit, query: string): string {
+  const parts = [
     `> ${emphasiseMarkdown(snippetSpans(flatten(hit.snippet), query, hit.highlights))
       .replace(/ {2,}/g, " ")
       .trim()}`,
-  );
+  ];
   const context = hit.context && hit.context.trim() !== hit.text.trim() ? hit.context : hit.text;
-  if (context && context.trim() !== hit.snippet.trim()) {
-    parts.push("---", context);
-  }
+  if (context && context.trim() !== hit.snippet.trim()) parts.push("---", context);
   return parts.join("\n\n");
 }
 
 interface Preview {
   id: string;
   markdown?: string;
-  withText?: boolean;
 }
 
 function pause(ms: number, signal?: AbortSignal): Promise<void> {
@@ -106,6 +107,11 @@ function useSelectedPreview(hit: SearchHit | undefined) {
   return { preview: data && data.id === hit?.id ? data : undefined, rendering: isLoading };
 }
 
+/**
+ * The selected passage's preview under a one-line caption, with no metadata
+ * rows so the rendered page gets the pane. While it renders only the caption
+ * shows, so the pane opens unscrolled.
+ */
 function HitDetail({
   hit,
   query,
@@ -117,37 +123,13 @@ function HitDetail({
   preview?: Preview;
   rendering?: boolean;
 }) {
-  const page = pageLabel(hit);
-  const text = detailMarkdown(hit, query);
-  const markdown = preview?.markdown
-    ? preview.withText
-      ? `${preview.markdown}\n\n---\n\n${text}`
-      : preview.markdown
-    : text;
-  return (
-    <List.Item.Detail
-      isLoading={rendering && !preview}
-      markdown={markdown}
-      metadata={
-        <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="File" text={basename(hit.path)} />
-          {page ? <List.Item.Detail.Metadata.Label title="Location" text={page} /> : null}
-          {hit.headings.length > 0 ? (
-            <List.Item.Detail.Metadata.Label title="Section" text={headingTrail(hit)} />
-          ) : null}
-          {hit.labels.length > 0 ? (
-            <List.Item.Detail.Metadata.TagList title="Elements">
-              {[...new Set(hit.labels)].map((l) => (
-                <List.Item.Detail.Metadata.TagList.Item key={l} text={l.replace(/_/g, " ")} />
-              ))}
-            </List.Item.Detail.Metadata.TagList>
-          ) : null}
-          <List.Item.Detail.Metadata.Label title="Folder" text={tidyHome(dirname(hit.path))} />
-          <List.Item.Detail.Metadata.Label title="Type" text={hit.documentType} />
-        </List.Item.Detail.Metadata>
-      }
-    />
-  );
+  const parts = [header(hit)];
+  if (preview?.markdown) {
+    parts.push(preview.markdown);
+  } else if (!rendering) {
+    parts.push(textMarkdown(hit, query), `\`${tidyHome(dirname(hit.path))}\``);
+  }
+  return <List.Item.Detail isLoading={rendering && !preview} markdown={parts.join("\n\n")} />;
 }
 
 /** The passages a file's section does not show, for the "show all" row's detail. */
@@ -234,7 +216,7 @@ export function SearchView({ scope, initialQuery = "" }: { scope?: DocumentScope
         const drillIn = <SearchView scope={scopeOf(group)} initialQuery={query} />;
         const count = `${group.hits.length} ${group.hits.length === 1 ? "passage" : "passages"}`;
         return (
-          <List.Section key={group.key} title={group.title} subtitle={`${tidyHome(dirname(group.path))} · ${count}`}>
+          <List.Section key={group.key} title={group.title} subtitle={`${count} · ${basename(dirname(group.path))}`}>
             {section.shown.map((hit) => {
               const page = pageLabel(hit);
               const heading = hit.headings.at(-1);

@@ -61,14 +61,7 @@ export function HitActions({
     <ActionPanel>
       <ActionPanel.Section>
         <Action title="Open at Passage" icon={Icon.ArrowRight} onAction={() => openAtPassage(hit, query)} />
-        {drillIn ? (
-          <Action.Push
-            title="Show All in This File"
-            icon={Icon.ChevronRight}
-            shortcut={{ modifiers: ["cmd"], key: "arrowRight" }}
-            target={drillIn}
-          />
-        ) : null}
+        {drillIn ? <Action.Push title="Show All in This File" icon={Icon.ChevronRight} target={drillIn} /> : null}
         <Action.ShowInFinder path={hit.path} shortcut={{ modifiers: ["cmd", "shift"], key: "r" }} />
         {scoped ? null : (
           <Action.Push

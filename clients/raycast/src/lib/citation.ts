@@ -1,4 +1,4 @@
-import { basename } from "path";
+import { basename, extname } from "path";
 import { fileKind } from "./doctype";
 import { DocumentGroup, SearchHit } from "./types";
 
@@ -10,6 +10,23 @@ export function pageLabel(hit: SearchHit): string | undefined {
   const last = pages[pages.length - 1];
   const plural = unit === "p." ? "pp." : "slides";
   return first === last ? `${unit} ${first}` : `${plural} ${first}–${last}`;
+}
+
+/** Where the passage is, in words: "Page 55", "Pages 136–138", "Slide 4", "Line 42". */
+export function locationLabel(hit: SearchHit): string | undefined {
+  if (hit.pages.length === 0) return hit.line ? `Line ${hit.line}` : undefined;
+  const slides = fileKind(hit.path, hit.documentType) === "powerpoint";
+  const pages = [...new Set(hit.pages)].sort((a, b) => a - b);
+  const [first, last] = [pages[0], pages[pages.length - 1]];
+  if (first === last) return `${slides ? "Slide" : "Page"} ${first}`;
+  return `${slides ? "Slides" : "Pages"} ${first}–${last}`;
+}
+
+/** The document's title, or its file name without the extension. */
+export function documentName(hit: SearchHit): string {
+  const file = basename(hit.path);
+  if (hit.title && hit.title !== file) return hit.title;
+  return basename(file, extname(file)) || file;
 }
 
 export function headingTrail(hit: SearchHit): string {

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { PASSAGES_PER_FILE, formatCitation, groupByDocument, pageLabel, topPassages } from "../citation";
+import {
+  PASSAGES_PER_FILE,
+  documentName,
+  formatCitation,
+  groupByDocument,
+  locationLabel,
+  pageLabel,
+  topPassages,
+} from "../citation";
 import { parsePatterns } from "../patterns";
 import {
   emphasiseMarkdown,
@@ -150,6 +158,21 @@ describe("citations and grouping", () => {
     const [only] = topPassages(groupByDocument(hits), Number.POSITIVE_INFINITY);
     expect(only.shown).toHaveLength(4);
     expect(only.more).toBe(0);
+  });
+
+  it("names the passage's place in words", () => {
+    expect(locationLabel(hit())).toBe("Page 40");
+    expect(locationLabel(hit({ pages: [138, 136, 137] }))).toBe("Pages 136–138");
+    expect(locationLabel(hit({ path: "/d.pptx", pages: [4] }))).toBe("Slide 4");
+    expect(locationLabel(hit({ path: "/d.pptx", pages: [4, 5] }))).toBe("Slides 4–5");
+    expect(locationLabel(hit({ path: "/n.md", pages: [], line: 42 }))).toBe("Line 42");
+    expect(locationLabel(hit({ path: "/n.md", pages: [] }))).toBeUndefined();
+  });
+
+  it("names a document by its title, else its file without the extension", () => {
+    expect(documentName(hit())).toBe("Country Guitar");
+    expect(documentName(hit({ title: "Country Guitar.pdf" }))).toBe("Country Guitar");
+    expect(documentName(hit({ title: undefined, path: "/x/notes" }))).toBe("notes");
   });
 
   it("ranks files by their best passage", () => {
