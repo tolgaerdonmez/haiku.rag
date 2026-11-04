@@ -1,5 +1,5 @@
-"""How the service starts and stops: on a socket launchd holds, and on its
-own once idle."""
+"""How the service starts and stops: on an inherited socket, and on its own
+once idle."""
 
 import asyncio
 import os

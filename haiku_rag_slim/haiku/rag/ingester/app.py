@@ -54,7 +54,8 @@ logger = logging.getLogger(__name__)
 _MANIFEST_EXTRA_KEY = "_manifest"
 
 # A listening socket the process inherited, as its file descriptor: a launcher
-# taking launchd's activated socket hands it on through this variable.
+# taking a service manager's activated socket (launchd's, systemd's) hands it
+# on through this variable.
 LISTEN_FD_VARIABLE = "HAIKU_RAG_LISTEN_FD"
 
 

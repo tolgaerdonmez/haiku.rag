@@ -2,8 +2,9 @@
 
 The local search service is `haiku-ingester serve` with its HTTP API: it watches
 the registered folders, ingests what changes, and answers searches over the
-indexed files. This page is the contract clients (the Raycast extension, scripts)
-build against.
+indexed files. This page is the contract clients (desktop search front ends,
+scripts) build against. [haiku-rag-macos](https://github.com/tolgaerdonmez/haiku-rag-macos)
+runs it as a launchd agent on macOS, with a Raycast extension as its client.
 
 - **Base URL:** `http://127.0.0.1:8765` (`ingester.api.host` and `ingester.api.port`).
   The service binds the loopback interface only.
@@ -11,8 +12,9 @@ build against.
   with a 4xx or 5xx status.
 - **Auth:** none by default. When `ingester.api.auth_token` is set, every
   endpoint except `GET /health` needs `Authorization: Bearer <token>`.
-- **Start-up:** under launchd the service is socket activated, so the first
-  request after login or after an idle exit starts it. That request, and the
+- **Start-up:** a service manager can start the service on demand: a launcher
+  holding the activated listening socket passes it on as `HAIKU_RAG_LISTEN_FD`,
+  so the first request after login or after an idle exit starts it. That request, and the
   first search after the embedding model was unloaded, can take a few seconds.
   Use a 15 s timeout for searches, 5 s for everything else.
 - **Versioning:** additive changes (new fields, new endpoints) do not bump
@@ -117,7 +119,7 @@ Hit fields:
 | `headings` | string[] or null | Section heading path, outermost first. |
 | `labels` | string[] | Docling element labels of the passage's items (`text`, `section_header`, `list_item`, `table`, `picture`, `caption`, `code`, `formula`, ...), in passage order. |
 | `snippet` | string | At most about 300 characters of the passage around the best match, with `...` where cut. |
-| `snippet_highlights` | [int, int][] | `[start, end)` character offsets into `snippet` of query words found in it. |
+| `snippet_highlights` | `[int, int][]` | `[start, end)` character offsets into `snippet` of query words found in it. |
 | `text` | string | The whole matched passage. |
 | `pages` | object[] | Per page: `page`, `width`, `height`, and `boxes` (`left`, `top`, `right`, `bottom`), see Coordinates. One box per document element (paragraph, list item, table, picture) of the passage. |
 | `context` | string or null | The passage expanded to its section, when `context=true`. |
@@ -312,7 +314,7 @@ ingester:
       max_load: 0.7           # pause conversions above this load per core
       min_free_memory_percent: 10
     vacuum_after_indexing:
-      min_documents: 50       # vacuum once the queue drains after this many; null never
+      min_documents: 50       # vacuum once the queue drains after this many; null (default) never
       quiet_s: 60             # how long the queue must stay empty first
       retention_seconds: 0    # keep no old versions
 ```

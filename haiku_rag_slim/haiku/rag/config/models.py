@@ -762,11 +762,11 @@ class VacuumAfterIndexingConfig(ConfigModel):
     """A vacuum the service runs once a large indexing run has finished."""
 
     min_documents: int | None = Field(
-        default=50,
+        default=None,
         gt=0,
         description="Vacuum a database once its queue has drained after at "
         "least this many documents were indexed or removed since the last such "
-        "vacuum. None never does.",
+        "vacuum. None, the default, never does.",
     )
     quiet_s: float = Field(
         default=60.0,
@@ -795,8 +795,9 @@ class ServiceConfig(ConfigModel):
         default=None,
         gt=0,
         description="Exit once this long has passed without an API request "
-        "while nothing is queued or converting. For a service launchd starts "
-        "on demand, which starts it again on the next request; changes made "
+        "while nothing is queued or converting. For a service a service "
+        "manager starts on demand (socket activation), which starts it again "
+        "on the next request; changes made "
         "meanwhile are found by the sweep at that start. None never exits.",
     )
     throttle: ThrottleConfig = Field(default_factory=ThrottleConfig)
